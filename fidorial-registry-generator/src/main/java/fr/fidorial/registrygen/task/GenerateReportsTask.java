@@ -9,16 +9,18 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +39,8 @@ import java.util.List;
 @CacheableTask
 public abstract class GenerateReportsTask extends DefaultTask {
 
+    private static final String AGENT_RESOURCE_PATH = "/fr/fidorial/registrygen/agent/block-light-properties-agent.jar";
+
     @Input
     public abstract Property<String> getMinecraftVersion();
 
@@ -53,15 +57,24 @@ public abstract class GenerateReportsTask extends DefaultTask {
     @OutputDirectory
     public abstract DirectoryProperty getDataDirectory();
 
+    @OutputFile
+    public abstract RegularFileProperty getBlockLightPropertiesReport();
+
     @TaskAction
     public void generate() throws IOException, InterruptedException {
+
         final Path dataDirectory = getDataDirectory().get().getAsFile().toPath();
         final Path serverJar = getServerJar().get().getAsFile().toPath();
+        final Path lightDataFile = getBlockLightPropertiesReport().get().getAsFile().toPath();
 
         Files.createDirectories(dataDirectory);
+        Files.createDirectories(lightDataFile.getParent());
+
+        final Path agentJar = extractAgentJar();
 
         final List<String> command = new ArrayList<>();
         command.add(getJavaExecutable().get());
+        command.add("-javaagent:" + agentJar.toAbsolutePath() + "=" + lightDataFile.toAbsolutePath());
         command.add("-DbundlerMainClass=net.minecraft.data.Main");
         command.add("-jar");
         command.add(serverJar.toAbsolutePath().toString());
@@ -80,7 +93,6 @@ public abstract class GenerateReportsTask extends DefaultTask {
 
         try (final BufferedReader reader = process.inputReader(StandardCharsets.UTF_8)) {
             String line;
-
             while ((line = reader.readLine()) != null) {
                 getLogger().lifecycle("[Minecraft Data Generator] {}", line);
             }
@@ -89,18 +101,46 @@ public abstract class GenerateReportsTask extends DefaultTask {
         final int exitCode = process.waitFor();
 
         if (exitCode != 0) {
-            throw new IOException(
-                    "Minecraft data generator exited with code " + exitCode
-            );
+            throw new IOException("Minecraft data generator exited with code " + exitCode);
         }
 
         final Path registriesFile = dataDirectory.resolve("generated").resolve("reports").resolve("registries.json");
 
         if (!Files.isRegularFile(registriesFile)) {
-            throw new IOException(
-                    "Minecraft data generator exited successfully, but did not generate "
-                    + registriesFile
-            );
+            throw new IOException("Minecraft data generator exited successfully, but did not generate " + registriesFile);
         }
+
+        if (!Files.isRegularFile(lightDataFile)) {
+            throw new IOException("Minecraft data generator exited successfully, but the block light properties agent did not produce "
+                    + lightDataFile + agentLogSuffix(lightDataFile));
+        }
+    }
+
+    private Path extractAgentJar() throws IOException {
+
+        final Path agentJar = getTemporaryDir().toPath().resolve("block-light-properties-agent.jar");
+
+        try (final InputStream resource = GenerateReportsTask.class.getResourceAsStream(AGENT_RESOURCE_PATH)) {
+
+            if (resource == null) {
+                throw new IOException("Bundled resource not found on plugin classpath: " + AGENT_RESOURCE_PATH);
+            }
+
+            Files.createDirectories(agentJar.getParent());
+            Files.copy(resource, agentJar, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        return agentJar;
+    }
+
+    private static String agentLogSuffix(final Path lightDataFile) throws IOException {
+
+        final Path agentLogFile = lightDataFile.resolveSibling(lightDataFile.getFileName() + ".agent.log");
+
+        if (!Files.isRegularFile(agentLogFile)) {
+            return " (no agent log at " + agentLogFile + " either - the shutdown hook may never have run)";
+        }
+
+        return "\n\nAgent log:\n" + Files.readString(agentLogFile);
     }
 }

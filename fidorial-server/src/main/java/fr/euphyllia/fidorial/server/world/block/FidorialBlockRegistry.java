@@ -1,6 +1,6 @@
 package fr.euphyllia.fidorial.server.world.block;
 
-import fr.fidorial.registry.keys.BlockTypeKeys;
+import fr.euphyllia.fidorial.server.registry.data.BlockStateLightProperties;
 import fr.fidorial.world.block.BlockBehaviour;
 import fr.fidorial.world.block.BlockData;
 import fr.fidorial.world.block.BlockRegistry;
@@ -49,7 +49,14 @@ public final class FidorialBlockRegistry implements BlockRegistry {
         return byNetworkId.get(networkId);
     }
 
-    // TODO: do sth about this
+    public int opacityOf(final int networkId) {
+        return BlockStateLightProperties.opacity(networkId);
+    }
+
+    public int emissionOf(final int networkId) {
+        return BlockStateLightProperties.emission(networkId);
+    }
+
     @Override
     public Optional<BlockBehaviour> behaviour(final Key key) {
         final BlockBehaviour explicit = behaviours.get(key);
@@ -58,9 +65,6 @@ public final class FidorialBlockRegistry implements BlockRegistry {
         }
         if (!types.containsKey(key)) {
             return Optional.empty();
-        }
-        if (key.equals(BlockTypeKeys.AIR.key())) {
-            return Optional.of(fallbackBehaviours.computeIfAbsent(key, SimpleBlock::transparent));
         }
         return Optional.of(fallbackBehaviours.computeIfAbsent(key, SimpleBlock::opaque));
     }

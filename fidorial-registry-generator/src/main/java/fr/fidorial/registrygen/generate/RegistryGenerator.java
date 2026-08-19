@@ -30,6 +30,7 @@ public final class RegistryGenerator {
     private final RegistryProtocolIdGenerator protocolIdGenerator;
     private final BlockReportParser blockReportParser;
     private final BlockStateGenerator blockStateGenerator;
+    private final BlockLightPropertiesGenerator lightDataGenerator;
 
     /**
      * Creates a registry generator using the standard parser and
@@ -43,7 +44,8 @@ public final class RegistryGenerator {
                 new RegistryKeyGenerator(),
                 new RegistryProtocolIdGenerator(),
                 new BlockReportParser(),
-                new BlockStateGenerator());
+                new BlockStateGenerator(),
+                new BlockLightPropertiesGenerator());
     }
 
     /**
@@ -52,13 +54,14 @@ public final class RegistryGenerator {
      * <p>This constructor is useful for testing or replacing individual
      * generation stages.</p>
      *
-     * @param parser              registry report parser
-     * @param dataGenerator       marker-interface generator
-     * @param keysGenerator       typed registry-entry key generator
+     * @param parser               registry report parser
+     * @param dataGenerator        marker-interface generator
+     * @param keysGenerator        typed registry-entry key generator
      * @param registryKeyGenerator central registry-key generator
-     * @param protocolIdGenerator raw protocol ID constant generator
-     * @param blockReportParser   blocks report parser
-     * @param blockStateGenerator block type registration generator
+     * @param protocolIdGenerator  raw protocol ID constant generator
+     * @param blockReportParser    blocks report parser
+     * @param blockStateGenerator  block type registration generator
+     * @param lightDataGenerator   block-state opacity/emission generator
      */
     public RegistryGenerator(final RegistryReportParser parser,
                              final RegistryDataGenerator dataGenerator,
@@ -66,7 +69,8 @@ public final class RegistryGenerator {
                              final RegistryKeyGenerator registryKeyGenerator,
                              final RegistryProtocolIdGenerator protocolIdGenerator,
                              final BlockReportParser blockReportParser,
-                             final BlockStateGenerator blockStateGenerator) {
+                             final BlockStateGenerator blockStateGenerator,
+                             final BlockLightPropertiesGenerator lightDataGenerator) {
 
         this.parser = Objects.requireNonNull(parser, "parser");
         this.dataGenerator = Objects.requireNonNull(dataGenerator, "dataGenerator");
@@ -75,6 +79,7 @@ public final class RegistryGenerator {
         this.protocolIdGenerator = Objects.requireNonNull(protocolIdGenerator, "protocolIdGenerator");
         this.blockReportParser = Objects.requireNonNull(blockReportParser, "blockReportParser");
         this.blockStateGenerator = Objects.requireNonNull(blockStateGenerator, "blockStateGenerator");
+        this.lightDataGenerator = Objects.requireNonNull(lightDataGenerator, "lightDataGenerator");
     }
 
     /**
@@ -168,17 +173,22 @@ public final class RegistryGenerator {
 
     /**
      * Parses a Mojang blocks report and generates {@code BlockStates},
-     * registering every block type and its full state table.
+     * registering every block type and its full state table, plus
+     * {@code BlockStateLightData} with per-state opacity and light emission.
      *
      * @param blocksJson      path to {@code blocks.json}
+     * @param lightDataJson   path to the light-data dump produced by
+     *                        {@code LightDataAgent} during data generation
      * @param outputDirectory generated Java source root
      *
      * @throws IOException if parsing or source generation fails
      */
-    public void generateBlockStates(final Path blocksJson, final Path outputDirectory) throws IOException {
+    public void generateBlockStates(final Path blocksJson, final Path lightDataJson, final Path outputDirectory) throws IOException {
 
         final List<BlockReportDefinition> blocks = blockReportParser.parse(blocksJson);
+
         blockStateGenerator.generate(blocks, outputDirectory);
+        lightDataGenerator.generate(blocks, lightDataJson, outputDirectory);
     }
 
     /**

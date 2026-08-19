@@ -1,8 +1,8 @@
 package fr.euphyllia.fidorial.server.world.light;
 
+import fr.euphyllia.fidorial.server.registry.data.BlockStateLightProperties;
 import fr.euphyllia.fidorial.server.world.chunk.BlockState;
 import fr.euphyllia.fidorial.server.world.chunk.BlockState.LightProperties;
-import fr.fidorial.world.block.BlockBehaviour;
 import fr.fidorial.world.block.BlockData;
 import fr.fidorial.world.block.BlockRegistry;
 import fr.fidorial.world.block.BlockType;
@@ -46,28 +46,19 @@ public class BlockLightProperties {
             return UNKNOWN_PROPS;
         }
 
-        final Resolved resolved = resolve(registry, state);
-        final LightProperties props = resolved == null
+        final BlockData data = resolve(registry, state);
+        final LightProperties props = data == null
                 ? UNKNOWN_PROPS
                 : new LightProperties(
-                resolved.behaviour().lightOpacity(resolved.data()),
-                resolved.behaviour().lightEmission(resolved.data()));
+                BlockStateLightProperties.opacity(data.networkId()),
+                BlockStateLightProperties.emission(data.networkId()));
 
         state.setLightProperties(props);
         return props;
     }
 
-    @SuppressWarnings("PatternValidation")
-    private static @Nullable Resolved resolve(final BlockRegistry registry, final BlockState state) {
-        final BlockBehaviour behaviour = registry.behaviour(state.name()).orElse(null);
-        if (behaviour == null) {
-            return null;
-        }
-        final BlockType type = behaviour.type();
-        final BlockData data = type.dataOrNull(state.properties());
-        return data == null ? null : new Resolved(behaviour, data);
-    }
-
-    private record Resolved(BlockBehaviour behaviour, BlockData data) {
+    private static @Nullable BlockData resolve(final BlockRegistry registry, final BlockState state) {
+        final BlockType type = registry.type(state.name()).orElse(null);
+        return type == null ? null : type.dataOrNull(state.properties());
     }
 }

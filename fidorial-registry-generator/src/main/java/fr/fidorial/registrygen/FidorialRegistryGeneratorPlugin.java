@@ -91,6 +91,9 @@ public final class FidorialRegistryGeneratorPlugin implements Plugin<Project> {
 
       task.getDataDirectory().set(extension.getWorkingDirectory().dir(extension.getMinecraftVersion()
               .map(version -> "minecraft/" + version + "/data")));
+
+      task.getBlockLightPropertiesReport().set(extension.getWorkingDirectory().file(extension.getMinecraftVersion()
+              .map(version -> "minecraft/" + version + "/light-data.json")));
     });
   }
 
@@ -146,6 +149,8 @@ public final class FidorialRegistryGeneratorPlugin implements Plugin<Project> {
 
        task.getBlocksReport().set(reportsTask.flatMap(GenerateReportsTask::getDataDirectory)
               .map(dir -> dir.file("generated/reports/blocks.json")));
+
+      task.getBlockLightPropertiesReport().set(reportsTask.flatMap(GenerateReportsTask::getBlockLightPropertiesReport));
 
        task.getGeneratedSourcesDirectory().set(extension.getGeneratedSourcesDirectory());
     });

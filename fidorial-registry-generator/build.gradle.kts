@@ -29,3 +29,29 @@ gradlePlugin {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }
+
+val blockLightPropertiesAgent = tasks.register<Jar>("buildBlockLightPropertiesAgent") {
+    group = "build"
+    description = "Packages the BlockLightPropertiesAgent as a standalone javaagent jar."
+
+    archiveClassifier.set("block-light-properties-agent")
+
+    from(sourceSets.main.map { it.output.classesDirs }) {
+        include("fr/fidorial/registrygen/agent/**")
+    }
+
+    manifest {
+        attributes(
+            "Premain-Class" to "fr.fidorial.registrygen.agent.BlockLightPropertiesAgent",
+            "Can-Redefine-Classes" to "false",
+            "Can-Retransform-Classes" to "false"
+        )
+    }
+}
+
+tasks.named<ProcessResources>("processResources") {
+    from(blockLightPropertiesAgent) {
+        into("fr/fidorial/registrygen/agent")
+        rename { "block-light-properties-agent.jar" }
+    }
+}

@@ -22,6 +22,10 @@ public abstract class GenerateBlockStatesTask extends DefaultTask {
     @PathSensitive(PathSensitivity.NONE)
     public abstract RegularFileProperty getBlocksReport();
 
+    @InputFile
+    @PathSensitive(PathSensitivity.NONE)
+    public abstract RegularFileProperty getBlockLightPropertiesReport();
+
     @OutputDirectory
     public abstract DirectoryProperty getGeneratedSourcesDirectory();
 
@@ -34,6 +38,7 @@ public abstract class GenerateBlockStatesTask extends DefaultTask {
         try {
             new RegistryGenerator().generateBlockStates(
                     getBlocksReport().get().getAsFile().toPath(),
+                    getBlockLightPropertiesReport().get().getAsFile().toPath(),
                     getGeneratedSourcesDirectory().get().getAsFile().toPath()
             );
         } catch (final IOException e) {
