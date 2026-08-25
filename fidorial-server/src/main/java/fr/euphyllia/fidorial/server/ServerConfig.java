@@ -49,7 +49,8 @@ public record ServerConfig(
         boolean enableCodeOfConduct,
         Path codeOfConductPath,
         boolean sparkEnabled,
-        Path sparkPath
+        Path sparkPath,
+        boolean debugWorldEnabled
 ) {
 
     private static final ComponentLogger LOGGER = ComponentLogger.logger(ServerConfig.class);
@@ -125,7 +126,8 @@ public record ServerConfig(
                 false,
                 Path.of(CodeOfConductManager.DEFAULT_FOLDER),
                 true,
-                Path.of("spark"));
+                Path.of("spark"),
+                false);
     }
 
     public static ServerConfig load() throws IOException {
@@ -178,7 +180,8 @@ public record ServerConfig(
                 Path.of(props.getProperty(
                         "code-of-conduct-path", defaults.codeOfConductPath().toString())),
                 readBool(props, "spark-enabled", defaults.sparkEnabled()),
-                Path.of(props.getProperty("spark-path", defaults.sparkPath().toString())));
+                Path.of(props.getProperty("spark-path", defaults.sparkPath().toString())),
+                readBool(props, "debug-world", defaults.debugWorldEnabled()));
         LOGGER.info("Configuration loaded from {}", file);
         return config;
     }
@@ -325,6 +328,7 @@ public record ServerConfig(
         props.setProperty("code-of-conduct-path", codeOfConductPath.toString());
         props.setProperty("spark-enabled", Boolean.toString(sparkEnabled));
         props.setProperty("spark-path", sparkPath.toString());
+        props.setProperty("debug-world", Boolean.toString(debugWorldEnabled));
         try (final OutputStream out = Files.newOutputStream(file)) {
             props.store(out, "Configuration Fidorial");
         }

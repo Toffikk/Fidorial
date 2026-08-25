@@ -55,6 +55,7 @@ import fr.euphyllia.fidorial.server.world.BlockEditService;
 import fr.euphyllia.fidorial.server.world.BlockStateRegistry;
 import fr.euphyllia.fidorial.server.world.BossBarRegistry;
 import fr.euphyllia.fidorial.server.world.ChunkNetworkSerializer;
+import fr.euphyllia.fidorial.server.world.DebugChunkGenerator;
 import fr.euphyllia.fidorial.server.world.FlatChunkGenerator;
 import fr.euphyllia.fidorial.server.world.ServerWorld;
 import fr.euphyllia.fidorial.server.world.ServiceBackedChunkGenerator;
@@ -63,6 +64,7 @@ import fr.euphyllia.fidorial.server.world.WorldManager;
 import fr.euphyllia.fidorial.server.world.block.FidorialBlockRegistry;
 import fr.euphyllia.fidorial.server.world.chunk.BlockStateProperties;
 import fr.euphyllia.fidorial.server.world.fluid.FluidEngine;
+import fr.euphyllia.fidorial.server.world.storage.Dimension;
 import fr.euphyllia.fidorial.server.world.weather.WeatherEngine;
 import fr.fidorial.Server;
 import fr.fidorial.combat.CombatService;
@@ -350,9 +352,19 @@ public final class FidorialServer implements Server {
                 WorldConstants.MIN_Y,
                 WorldConstants.HEIGHT));
         worldManager.overworld();
+        openDebugWorldIfEnabled();
         weatherEngine.start();
         dayNightEngine.start();
         bossBarRegistry.loadFromLevelData();
+    }
+
+    private void openDebugWorldIfEnabled() {
+        if (!config.debugWorldEnabled()) {
+            return;
+        }
+        final DebugChunkGenerator debugGenerator = DebugChunkGenerator.create(
+                blockStateRegistry.registry(), 0, WorldConstants.HEIGHT, Key.key("plains"));
+        worldManager.registerDimension(Dimension.datapack("fidorial", "debug"), debugGenerator);
     }
 
     private void registerDefaultServices() {
