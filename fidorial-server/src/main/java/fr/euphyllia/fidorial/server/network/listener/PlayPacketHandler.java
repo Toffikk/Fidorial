@@ -376,6 +376,10 @@ public final class PlayPacketHandler implements PlayPacketListener {
             connection.send(new ClientboundBlockChangedAckPacket(packet.sequence()));
             return;
         }
+        if (describeGenerator(worldId()) instanceof ChunkGeneratorConfig.Debug) {
+            connection.send(new ClientboundBlockChangedAckPacket(packet.sequence()));
+            return;
+        }
         if (interactWithBlock(packet.target())) {
             connection.send(new ClientboundBlockChangedAckPacket(packet.sequence()));
             return;
@@ -524,7 +528,7 @@ public final class PlayPacketHandler implements PlayPacketListener {
                                     || status == ServerboundPlayerActionPacket.FINISH_DESTROY_BLOCK;
                     case ADVENTURE, SPECTATOR -> false;
                 };
-        if (breaking) {
+        if (breaking && !(describeGenerator(worldId()) instanceof ChunkGeneratorConfig.Debug)) {
             final BlockBreakEvent event = server.events().post(new BlockBreakEvent(player, packet.position()));
             if (!event.isCancelled()) {
                 onBlockDestroyed(packet.position());

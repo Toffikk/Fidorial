@@ -41,7 +41,7 @@ public final class WorldTimeEngine implements DayNightCycle {
         }
         final float accumulated = fractionalTime + rate;
         final long whole = (long) Math.floor(accumulated);
-        fractionalTime = (float) (accumulated - whole);
+        fractionalTime = accumulated - whole;
         time += whole;
     }
 
