@@ -363,7 +363,7 @@ public final class FidorialServer implements Server {
             return;
         }
         final DebugChunkGenerator debugGenerator = DebugChunkGenerator.create(
-                blockStateRegistry.registry(), 0, WorldConstants.HEIGHT, Key.key("plains"));
+                blockStateRegistry.registry(), WorldConstants.MIN_Y, WorldConstants.HEIGHT, Key.key("plains"));
         worldManager.registerDimension(Dimension.datapack("fidorial", "debug"), debugGenerator);
     }
 
