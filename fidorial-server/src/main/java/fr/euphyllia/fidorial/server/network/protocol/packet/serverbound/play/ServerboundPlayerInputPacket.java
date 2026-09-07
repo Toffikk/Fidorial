@@ -4,6 +4,7 @@ import fr.euphyllia.fidorial.server.network.PacketBuffer;
 import fr.euphyllia.fidorial.server.network.protocol.packet.listener.PlayPacketListener;
 import fr.fidorial.protocol.PacketListener;
 import fr.fidorial.protocol.ServerboundPacket;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * The full keyboard state of the player, sent whenever it changes.
@@ -48,6 +49,7 @@ public record ServerboundPlayerInputPacket(int flags) implements ServerboundPack
         return (flags & SHIFT) != 0;
     }
 
+    // the player command packet is responsible for this in vanilla
     public boolean sprinting() {
         return (flags & SPRINT) != 0;
     }

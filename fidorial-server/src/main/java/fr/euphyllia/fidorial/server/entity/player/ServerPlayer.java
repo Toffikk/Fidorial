@@ -42,6 +42,7 @@ import fr.fidorial.inventory.PlayerInventory;
 import fr.fidorial.permission.PermissionResolver;
 import fr.fidorial.permission.PermissionState;
 import fr.fidorial.permission.PermissionStateHolder;
+import fr.fidorial.registry.keys.BlockTypeKeys;
 import fr.fidorial.sound.SoundEvents;
 import fr.fidorial.translation.TranslationStore;
 import fr.fidorial.world.Location;
@@ -56,6 +57,7 @@ import net.kyori.adventure.text.object.ObjectContents;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
@@ -77,6 +79,7 @@ public final class ServerPlayer extends AbstractLivingEntity implements Player, 
     public static final int MD_MAIN_HAND = 15; // Main hand (0: left, 1: right)
     public static final int MD_DISPLAYED_SKIN_PARTS =
             16; // The Displayed Skin Parts bit mask that is sent in Client Information
+    private static final double EYE_HEIGHT = 1.62; // standing eye height
     private static final int MAX_TRACKED_ATTACK_TICKS = 100;
     private static final int[] ARMOR_SLOTS = {36, 37, 38, 39};
     private static final int VOID_MARGIN = 64;
@@ -99,6 +102,8 @@ public final class ServerPlayer extends AbstractLivingEntity implements Player, 
     private volatile boolean sprinting;
     private volatile boolean sneaking;
     private volatile boolean falling;
+    private volatile boolean jumping;
+    private volatile boolean swimming;
     private volatile boolean awaitingRespawn;
     private volatile double fallDistance;
     private final AtomicInteger ticksSinceLastAttack = new AtomicInteger(MAX_TRACKED_ATTACK_TICKS);
@@ -309,6 +314,75 @@ public final class ServerPlayer extends AbstractLivingEntity implements Player, 
         this.falling = falling;
     }
 
+    public boolean isJumping() {
+        return jumping;
+    }
+
+    public void setJumping(final boolean jumping) {
+        this.jumping = jumping;
+    }
+
+    public boolean isSwimming() {
+        return swimming;
+    }
+
+    private void setSwimming(final boolean swimming) {
+        if (this.swimming == swimming) {
+            return;
+        }
+        this.swimming = swimming;
+        broadcastMovementFlags();
+    }
+
+    private void updateSwimmingState() {
+        setSwimming(!isDead() && !isInvulnerableToDamage() && isSprinting() && isSubmergedInWater());
+    }
+
+    private boolean isSubmergedInWater() {
+        if (!(world() instanceof final ServerWorld serverWorld)) {
+            return false;
+        }
+        final Location loc = location();
+        final int x = (int) Math.floor(loc.x());
+        final int z = (int) Math.floor(loc.z());
+        final int eyeY = (int) Math.floor(loc.y() + EYE_HEIGHT);
+        try {
+            return serverWorld.getBlock(x, eyeY, z).name().equals(BlockTypeKeys.WATER.key());
+        } catch (final IOException e) {
+            return false;
+        }
+    }
+
+    public boolean isInWater() {
+        if (!(world() instanceof final ServerWorld serverWorld)) {
+            return false;
+        }
+        final Location loc = location();
+        final int x = (int) Math.floor(loc.x());
+        final int z = (int) Math.floor(loc.z());
+        final int feetY = (int) Math.floor(loc.y());
+        try {
+            return serverWorld.getBlock(x, feetY, z).isFluid();
+        } catch (final IOException e) {
+            return false;
+        }
+    }
+
+    private void broadcastMovementFlags() {
+        int flags = 0;
+        if (fireTicks() > 0) flags |= MovementActionData.FLAG_ON_FIRE;
+        if (isSneaking()) flags |= MovementActionData.FLAG_SNEAKING;
+        if (isSprinting()) flags |= MovementActionData.FLAG_SPRINTING;
+        if (isSwimming()) flags |= MovementActionData.FLAG_SWIMMING;
+
+        final int pose = isSwimming() ? MovementActionData.POSE_SWIMMING : MovementActionData.POSE_STANDING;
+
+        sendToTrackers(ClientboundSetEntityMetadataPacket.of(
+                entityId(),
+                ClientboundSetEntityMetadataPacket.Entry.ofByte(MovementActionData.MD_ENTITY_FLAGS, flags),
+                ClientboundSetEntityMetadataPacket.Entry.raw(MovementActionData.MD_POSE, 20, buf -> buf.writeVarInt(pose))));
+    }
+
     public int ticksSinceLastAttack() {
         return ticksSinceLastAttack.get();
     }
@@ -400,6 +474,7 @@ public final class ServerPlayer extends AbstractLivingEntity implements Player, 
         tickVoid();
         tickFire();
         tickRegeneration(currentTick);
+        updateSwimmingState();
     }
 
     public float landAfterFall() {

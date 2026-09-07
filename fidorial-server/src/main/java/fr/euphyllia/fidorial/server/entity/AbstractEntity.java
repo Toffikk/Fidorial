@@ -183,4 +183,40 @@ public abstract class AbstractEntity implements Entity {
     public HoverEvent<HoverEvent.ShowEntity> asHoverEvent(final UnaryOperator<HoverEvent.ShowEntity> op) {
         return HoverEvent.showEntity(op.apply(HoverEvent.ShowEntity.showEntity(type().key(), uuid(), displayName())));
     }
+
+    // https://minecraft.wiki/w/Java_Edition_protocol/Entity_metadata#Entity
+    public static final class MovementActionData {
+        // metadata indices
+        public static final int MD_ENTITY_FLAGS = 0;
+        public static final int MD_POSE = 6;
+
+        // flags
+        public static final int FLAG_ON_FIRE = 0x01;
+        public static final int FLAG_SNEAKING = 0x02;
+        public static final int FLAG_SPRINTING = 0x08;
+        public static final int FLAG_SWIMMING = 0x10;
+        public static final int FLAG_INVISIBLE = 0x20;
+        public static final int FLAG_GLOWING = 0x40;
+        public static final int FLAG_FLYING_WITH_ELYTRA = 0x80;
+
+        // poses
+        public static final int POSE_STANDING = 0;
+        public static final int POSE_FALL_FLYING = 1;
+        public static final int POSE_SLEEPING = 2;
+        public static final int POSE_SWIMMING = 3;
+        public static final int POSE_SPIN_ATTACK = 4;
+        public static final int POSE_SNEAKING = 5;
+        public static final int POSE_LONG_JUMPING = 6;
+        public static final int POSE_DYING = 7;
+        public static final int POSE_CROAKING = 8;
+        public static final int POSE_USING_TONGUE = 9;
+        public static final int POSE_SITTING = 10;
+        public static final int POSE_ROARING = 11;
+        public static final int POSE_SNIFFING = 12;
+        public static final int POSE_EMERGING = 13;
+        public static final int POSE_DIGGING = 14;
+        public static final int POSE_SLIDING = 15;
+        public static final int POSE_SHOOTING = 16;
+        public static final int POSE_INHALING = 17;
+    }
 }

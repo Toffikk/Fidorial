@@ -31,6 +31,7 @@ import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.Ser
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundMovePlayerPosPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundMovePlayerPosRotPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerActionPacket;
+import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerCommandPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerInputPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerLoadedPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPunchPacket;
@@ -105,6 +106,7 @@ public class ServerboundPackets {
                 ServerboundSetCreativeModeSlotPacket::read);
         register(ConnectionState.PLAY, PlayServerboundPackets.USE_ITEM_ON, ServerboundUseItemOnPacket::read);
         register(ConnectionState.PLAY, PlayServerboundPackets.PLAYER_ACTION, ServerboundPlayerActionPacket::read);
+        register(ConnectionState.PLAY, PlayServerboundPackets.PLAYER_COMMAND, ServerboundPlayerCommandPacket::read);
         register(ConnectionState.PLAY, PlayServerboundPackets.SET_CARRIED_ITEM, ServerboundSetCarriedItemPacket::read);
         register(ConnectionState.PLAY, PlayServerboundPackets.MOVE_PLAYER_POS, ServerboundMovePlayerPosPacket::read);
         register(

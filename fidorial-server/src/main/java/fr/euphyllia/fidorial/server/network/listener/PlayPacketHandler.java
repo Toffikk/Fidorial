@@ -51,6 +51,7 @@ import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.Ser
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundMovePlayerPosRotPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerAbilitiesPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerActionPacket;
+import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerCommandPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerInputPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPlayerLoadedPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundPunchPacket;
@@ -778,8 +779,25 @@ public final class PlayPacketHandler implements PlayPacketListener {
         if (player == null) {
             return;
         }
-        player.setSprinting(packet.sprinting());
         player.setSneaking(packet.sneaking());
+        player.setJumping(packet.jumping());
+    }
+
+    @Override
+    public void handlePlayerCommand(final ServerboundPlayerCommandPacket packet) {
+        if (player == null) {
+            return;
+        }
+        switch (packet.actionId()) {
+            case ServerboundPlayerCommandPacket.START_SPRINTING -> player.setSprinting(true);
+            case ServerboundPlayerCommandPacket.STOP_SPRINTING -> player.setSprinting(false);
+            case ServerboundPlayerCommandPacket.LEAVE_BED,
+                 ServerboundPlayerCommandPacket.START_JUMP_WITH_HORSE,
+                 ServerboundPlayerCommandPacket.STOP_JUMP_WITH_HORSE,
+                 ServerboundPlayerCommandPacket.OPEN_VEHICLE_INVENTORY,
+                 ServerboundPlayerCommandPacket.START_FLYING_WITH_ELYTRA -> {} // TODO: implement me
+            default -> LOGGER.debug("{} sent unknown player_command action {}", player.name(), packet.actionId());
+        }
     }
 
     @Override
@@ -903,6 +921,12 @@ public final class PlayPacketHandler implements PlayPacketListener {
         if (wasOnGround && isOnGround) return;
 
         if (player.gameMode() == GameMode.CREATIVE || player.gameMode() == GameMode.SPECTATOR) {
+            player.setFallDistance(0.0);
+            player.setFalling(false);
+            return;
+        }
+
+        if (player.isInWater()) {
             player.setFallDistance(0.0);
             player.setFalling(false);
             return;
