@@ -51,6 +51,7 @@ import fr.fidorial.world.Location;
 import fr.fidorial.world.World;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.chat.ChatType;
+import net.kyori.adventure.chat.SignedMessage;
 import net.kyori.adventure.dialog.DialogLike;
 import net.kyori.adventure.resource.ResourcePackRequest;
 import net.kyori.adventure.sound.Sound;
@@ -434,10 +435,17 @@ public final class ServerPlayer extends AbstractLivingEntity implements Player, 
     @Override
     public void sendMessage(final Component message, final ChatType.Bound chatType) {
         final Component resolvedMessage = TranslationStore.render(ComponentResolver.resolve(message, this), locale());
-        final Component resolvedName = TranslationStore.render(ComponentResolver.resolve(chatType.name(), this), locale());
-        Component resolvedTarget = null;
-        if (chatType.target() != null) resolvedTarget = TranslationStore.render(ComponentResolver.resolve(chatType.target(), this), locale());
-        connection.send(new ClientboundDisguisedChatPacket(resolvedMessage, chatType.type(), resolvedName, resolvedTarget));
+        connection.send(new ClientboundDisguisedChatPacket(resolvedMessage, chatType, this));
+    }
+
+    @Override
+    public void sendMessage(final SignedMessage signedMessage, final ChatType.Bound chatType) {
+        connection.sendSignedMessage(signedMessage, chatType);
+    }
+
+    @Override
+    public void deleteMessage(final SignedMessage.Signature signature) {
+        connection.deleteSignedMessage(signature);
     }
 
     @Override

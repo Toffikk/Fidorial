@@ -3,6 +3,11 @@ package fr.euphyllia.fidorial.server.network.listener;
 import fr.euphyllia.fidorial.server.FidorialServer;
 import fr.euphyllia.fidorial.server.ServerConfig;
 import fr.euphyllia.fidorial.server.adventure.ClickCallbackManager;
+import fr.euphyllia.fidorial.server.chat.ChatSigning;
+import fr.euphyllia.fidorial.server.chat.IdentifiedSignedMessage;
+import fr.euphyllia.fidorial.server.chat.SignedChatSession;
+import fr.euphyllia.fidorial.server.chat.SignedMessageChain;
+import fr.euphyllia.fidorial.server.chat.SignedMessageHelper;
 import fr.euphyllia.fidorial.server.entity.AbstractEntity;
 import fr.euphyllia.fidorial.server.entity.mob.AbstractMob;
 import fr.euphyllia.fidorial.server.entity.player.InventorySlots;
@@ -17,6 +22,7 @@ import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.Cli
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundContainerSetContentPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundEntityPositionSyncPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundGameEventPacket;
+import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundInitializeChatPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundLoginPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundPlayerAbilitiesPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundPlayerInfoRemovePacket;
@@ -40,6 +46,7 @@ import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.Ser
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundAttackPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundChatCommandPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundChatPacket;
+import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundChatSessionUpdatePacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundClientCommandPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundCommandSuggestionPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.serverbound.play.ServerboundContainerClickPacket;
@@ -78,6 +85,7 @@ import fr.fidorial.event.player.PlayerJoinEvent;
 import fr.fidorial.event.player.PlayerOpenEnderChestEvent;
 import fr.fidorial.event.player.PlayerQuitEvent;
 import fr.fidorial.event.player.PlayerRespawnEvent;
+import fr.fidorial.event.player.PlayerSignedChatEvent;
 import fr.fidorial.inventory.EnderChestInventory;
 import fr.fidorial.inventory.EquipmentSlotGroup;
 import fr.fidorial.inventory.PlayerInventory;
@@ -93,6 +101,8 @@ import fr.fidorial.world.ChunkPos;
 import fr.fidorial.world.Location;
 import fr.fidorial.world.World;
 import fr.fidorial.world.block.BlockPlaceContext;
+import net.kyori.adventure.chat.ChatType;
+import net.kyori.adventure.chat.SignedMessage;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 import net.kyori.adventure.sound.Sound;
@@ -101,6 +111,10 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.security.PublicKey;
+import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -150,8 +164,10 @@ public final class PlayPacketHandler implements PlayPacketListener {
             server.addPlayerConnection(connection);
             for (final ServerPlayer other : server.players()) {
                 if (other == player) continue;
-                connection.send(new ClientboundPlayerInfoUpdatePacket(other.profile(), other.gameMode().id(), other.ping()));
-                other.connection().send(new ClientboundPlayerInfoUpdatePacket(player.profile(), player.gameMode().id(), player.ping()));
+                connection.send(new ClientboundPlayerInfoUpdatePacket(
+                        other.profile(), other.gameMode().id(), other.ping(), other.connection().chatSession()));
+                other.connection().send(new ClientboundPlayerInfoUpdatePacket(
+                        player.profile(), player.gameMode().id(), player.ping(), connection.chatSession()));
             }
             server.events().post(new PlayerJoinEvent(player));
             LOGGER.info("{} logged with uuid {}", player.name(), player.uuid());
@@ -298,7 +314,8 @@ public final class PlayPacketHandler implements PlayPacketListener {
                 player.gameMode().id(),
                 describeGenerator(serverWorld()) instanceof ChunkGeneratorConfig.Debug,
                 describeGenerator(serverWorld()) instanceof ChunkGeneratorConfig.Flat,
-                server.config().onlineMode()));
+                server.config().onlineMode(),
+                server.config().enforcesSecureChat()));
         connection.send(new ClientboundPlayerInfoUpdatePacket(
                 player.profile(), player.gameMode().id(), player.ping()));
         connection.send(ClientboundPlayerAbilitiesPacket.forGameMode(player.gameMode()));
@@ -429,19 +446,131 @@ public final class PlayPacketHandler implements PlayPacketListener {
         if (player == null) {
             return;
         }
-        final Component message = packet.message();
-        if (message.equals(Component.empty())) {
+
+        final String content = packet.message();
+        if (content.isEmpty()) {
             return;
         }
 
-        final PlayerChatEvent event = server.events().post(new PlayerChatEvent(player, message));
+        final SignedChatSession session = connection.chatSession();
+        final SignedMessageChain chain = connection.chatChain();
+
+        SignedMessage verified = null;
+
+        if (session != null && chain != null) {
+            final List<SignedMessage.Signature> lastSeen = connection.lastSeen().resolve(packet.acknowledged(), packet.checksum());
+
+            if (lastSeen == null) {
+                chain.markBroken();
+            } else {
+                final SignedMessageChain.Outcome outcome = chain.verify(
+                        session, packet.salt(), Instant.ofEpochMilli(packet.timestamp()), content, lastSeen, packet.signature());
+
+                if (outcome.verified()) {
+                    verified = new IdentifiedSignedMessage(
+                            player.identity(),
+                            content,
+                            Instant.ofEpochMilli(packet.timestamp()),
+                            packet.salt(),
+                            outcome.signature(),
+                            null,
+                            session.sessionId(),
+                            outcome.index(),
+                            lastSeen);
+                } else if (config.enforcesSecureChat()) {
+                    disconnectForChat(outcome.reason());
+                    return;
+                }
+            }
+        } else if (config.enforcesSecureChat()) {
+            disconnectForChat(SignedMessageChain.Reason.MISSING_SIGNATURE);
+            return;
+        }
+
+        final PlayerChatEvent event = verified != null
+                ? server.events().post(new PlayerSignedChatEvent(player, verified))
+                : server.events().post(new PlayerChatEvent(player, Component.text(content)));
+
         if (event.isCancelled()) {
             return;
         }
 
-        final Component formatted = Component.text("<" + player.name() + "> ").append(event.message());
-        LOGGER.debug(formatted);
+        if (event instanceof final PlayerSignedChatEvent signedEvent) {
+            final SignedMessage decorated = SignedMessageHelper.withUnsignedContent(signedEvent.signedMessage(), signedEvent.message());
+            broadcastSigned(decorated);
+        } else {
+            broadcastUnsigned(event.message());
+        }
+    }
+
+    private void disconnectForChat(final SignedMessageChain.Reason reason) {
+        connection.disconnect(Component.translatable(switch (reason) {
+            case MISSING_SIGNATURE -> "multiplayer.disconnect.unsigned_chat";
+            case EXPIRED_KEY -> "multiplayer.disconnect.expired_public_key";
+            case INVALID_SIGNATURE, CHAIN_BROKEN -> "multiplayer.disconnect.chat_validation_failed";
+            case OUT_OF_ORDER -> "multiplayer.disconnect.out_of_order_chat";
+        }));
+    }
+
+    private void broadcastSigned(final SignedMessage message) {
+        final ChatType.Bound chatType = ChatType.CHAT.bind(player.displayName());
+        for (final ServerPlayer viewer : server.players()) {
+            viewer.sendMessage(message, chatType);
+        }
+    }
+
+    private void broadcastUnsigned(final Component message) {
+        final Component formatted = Component.text("<" + player.name() + "> ").append(message);
         server.broadcast(new ClientboundSystemChatPacket(formatted, false));
+    }
+
+    @Override
+    public void handleChatSessionUpdate(final ServerboundChatSessionUpdatePacket packet) {
+        if (player == null) {
+            return;
+        }
+        final UUID playerUuid = player.uuid();
+
+        server.chatSigningKeys().keys().thenAccept(keys -> connection.execute(() -> {
+            boolean trusted = false;
+            for (final PublicKey mojangKey : keys) {
+                try {
+                    if (ChatSigning.verifySessionSignature(
+                            mojangKey, playerUuid, packet.publicKeyExpiresAt(), packet.publicKey(), packet.keySignature())) {
+                        trusted = true;
+                        break;
+                    }
+                } catch (final GeneralSecurityException ignored) {
+                    // try the next key
+                }
+            }
+
+            if (!trusted) {
+                LOGGER.warn("{} sent a chat session key with an invalid Mojang signature", player.name());
+                if (config.enforcesSecureChat()) {
+                    connection.disconnect(Component.translatable("multiplayer.disconnect.invalid_public_key_signature"));
+                }
+                return;
+            }
+
+            final PublicKey sessionKey;
+            try {
+                sessionKey = ChatSigning.decodePublicKey(packet.publicKey());
+            } catch (final GeneralSecurityException e) {
+                LOGGER.warn("{} sent a malformed chat session public key", player.name(), e);
+                return;
+            }
+
+            connection.setChatSession(new SignedChatSession(
+                    packet.sessionId(), sessionKey, packet.publicKey(), packet.keySignature(),
+                    Instant.ofEpochMilli(packet.publicKeyExpiresAt())));
+            LOGGER.debug("{} established chat session {}", player.name(), packet.sessionId());
+
+            final SignedChatSession established = connection.chatSession();
+            for (final ServerPlayer viewer : server.players()) {
+                viewer.connection().send(new ClientboundInitializeChatPacket(playerUuid, established));
+            }
+        }));
     }
 
     @Override

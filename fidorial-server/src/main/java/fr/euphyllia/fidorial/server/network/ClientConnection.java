@@ -3,6 +3,11 @@ package fr.euphyllia.fidorial.server.network;
 import com.google.common.net.InetAddresses;
 import fr.euphyllia.fidorial.auth.EncryptionUtils;
 import fr.euphyllia.fidorial.server.FidorialServer;
+import fr.euphyllia.fidorial.server.chat.FilterType;
+import fr.euphyllia.fidorial.server.chat.IdentifiedSignedMessage;
+import fr.euphyllia.fidorial.server.chat.LastSeenMessages;
+import fr.euphyllia.fidorial.server.chat.SignedChatSession;
+import fr.euphyllia.fidorial.server.chat.SignedMessageChain;
 import fr.euphyllia.fidorial.server.entity.player.ServerPlayer;
 import fr.euphyllia.fidorial.server.network.codec.CipherDecoder;
 import fr.euphyllia.fidorial.server.network.codec.CipherEncoder;
@@ -13,6 +18,7 @@ import fr.euphyllia.fidorial.server.network.listener.HandshakePacketHandler;
 import fr.euphyllia.fidorial.server.network.listener.LoginPacketHandler;
 import fr.euphyllia.fidorial.server.network.listener.PlayPacketHandler;
 import fr.euphyllia.fidorial.server.network.listener.StatusPacketHandler;
+import fr.euphyllia.fidorial.server.network.nbt.ComponentResolver;
 import fr.euphyllia.fidorial.server.network.protocol.ProtocolMap;
 import fr.euphyllia.fidorial.server.network.protocol.catalog.ConfigurationClientboundPackets;
 import fr.euphyllia.fidorial.server.network.protocol.catalog.PlayClientboundPackets;
@@ -21,8 +27,10 @@ import fr.euphyllia.fidorial.server.network.protocol.packet.ServerboundPackets;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.common.ClientboundResourcePackPopPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.common.ClientboundResourcePackPushPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.login.ClientboundLoginDisconnectPacket;
+import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundDeleteMessagePacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundDisconnectPacket;
 import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundKeepAlivePacket;
+import fr.euphyllia.fidorial.server.network.protocol.packet.clientbound.play.ClientboundPlayerChatPacket;
 import fr.euphyllia.fidorial.server.world.ServerWorld;
 import fr.fidorial.entity.PlayerProfile;
 import fr.fidorial.entity.RespawnPoint;
@@ -40,6 +48,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.chat.ChatType;
+import net.kyori.adventure.chat.SignedMessage;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.resource.ResourcePackCallback;
 import net.kyori.adventure.resource.ResourcePackInfo;
@@ -66,6 +76,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // implement pointers and dialog methods in the future from audience
 public final class ClientConnection extends SimpleChannelInboundHandler<ByteBuf> implements Audience {
@@ -93,6 +104,10 @@ public final class ClientConnection extends SimpleChannelInboundHandler<ByteBuf>
     private @Nullable String forwardedAddress;
     private Locale locale = TranslationStore.defaultLocale();
     private @Nullable ScheduledFuture<?> keepAliveTask;
+    private volatile @Nullable SignedChatSession chatSession;
+    private volatile @Nullable SignedMessageChain chatChain;
+    private final LastSeenMessages lastSeenMessages = new LastSeenMessages();
+    private final AtomicInteger nextGlobalChatIndex = new AtomicInteger();
 
     private volatile long pendingKeepAliveId;
     private volatile int latencyMillis;
@@ -264,6 +279,71 @@ public final class ClientConnection extends SimpleChannelInboundHandler<ByteBuf>
 
     public int ping() {
         return latencyMillis;
+    }
+
+    public @Nullable SignedChatSession chatSession() {
+        return chatSession;
+    }
+
+    public void setChatSession(final SignedChatSession session) {
+        this.chatSession = session;
+        final PlayerProfile p = this.profile;
+        this.chatChain = p != null ? new SignedMessageChain(p.uuid()) : null;
+    }
+
+    public @Nullable SignedMessageChain chatChain() {
+        return chatChain;
+    }
+
+    public LastSeenMessages lastSeen() {
+        return lastSeenMessages;
+    }
+
+    public void sendSignedMessage(final SignedMessage message, final ChatType.Bound chatType) {
+        final int globalIndex = nextGlobalChatIndex.getAndIncrement();
+        final SignedMessage.Signature ownSignature = message.signature();
+
+        final List<ClientboundPlayerChatPacket.PackedSignature> lastSeen;
+        final int index;
+        if (message instanceof final IdentifiedSignedMessage verified) {
+            lastSeen = packLastSeen(verified.lastSeen());
+            index = verified.index();
+        } else {
+            lastSeen = List.of();
+            index = globalIndex;
+        }
+
+        if (player() != null) {
+            send(new ClientboundPlayerChatPacket(
+                    globalIndex,
+                    message.identity().uuid(),
+                    index,
+                    ownSignature != null ? ownSignature.bytes() : null,
+                    message.message(),
+                    message.timestamp(),
+                    message.salt(),
+                    lastSeen,
+                    message.unsignedContent() != null ? TranslationStore.render(ComponentResolver.resolve(message.unsignedContent(), player()), player().locale()) : null,
+                    FilterType.PASS_THROUGH,
+                    chatType,
+                    player()));
+
+            if (ownSignature != null) {
+                lastSeenMessages.push(ownSignature);
+            }
+        }
+    }
+
+    private List<ClientboundPlayerChatPacket.PackedSignature> packLastSeen(final List<SignedMessage.Signature> lastSeen) {
+        final List<ClientboundPlayerChatPacket.PackedSignature> packed = new ArrayList<>(lastSeen.size());
+        for (final SignedMessage.Signature signature : lastSeen) {
+            packed.add(ClientboundPlayerChatPacket.PackedSignature.full(signature.bytes()));
+        }
+        return packed;
+    }
+
+    public void deleteSignedMessage(final SignedMessage.Signature signature) {
+        send(ClientboundDeleteMessagePacket.full(signature.bytes()));
     }
 
     @Override
