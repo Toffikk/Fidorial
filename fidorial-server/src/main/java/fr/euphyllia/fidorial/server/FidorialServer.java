@@ -24,6 +24,10 @@ import fr.euphyllia.fidorial.server.entity.player.storage.NbtPlayerInventoryStor
 import fr.euphyllia.fidorial.server.events.SimpleEventBus;
 import fr.euphyllia.fidorial.server.inventory.ChestViewerTracker;
 import fr.euphyllia.fidorial.server.item.FidorialItemRegistry;
+import fr.euphyllia.fidorial.server.management.GameRuleRegistry;
+import fr.euphyllia.fidorial.server.management.LiveServerSettings;
+import fr.euphyllia.fidorial.server.management.ManagementNotifier;
+import fr.euphyllia.fidorial.server.management.ManagementServer;
 import fr.euphyllia.fidorial.server.metrics.FidorialContext;
 import fr.euphyllia.fidorial.server.moderation.CodeOfConductManager;
 import fr.euphyllia.fidorial.server.moderation.FidorialBanManager;
@@ -101,6 +105,8 @@ import fr.fidorial.world.entity.EntitySpawnBridge;
 import fr.fidorial.world.fluid.FluidManager;
 import fr.fidorial.world.structure.StructureManager;
 import fr.fidorial.world.weather.WeatherManager;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -108,10 +114,13 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.jspecify.annotations.Nullable;
 
+import javax.net.ssl.KeyManagerFactory;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
+import java.security.KeyStore;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -207,6 +216,10 @@ public final class FidorialServer implements Server {
             PROFILE_CACHE_MAX_ENTRIES,
             config.onlineMode());
     private final NettyServer network = new NettyServer(this, config.port());
+    private final ManagementNotifier managementNotifier = new ManagementNotifier();
+    private final LiveServerSettings liveSettings = new LiveServerSettings(config);
+    private final GameRuleRegistry gameRules = new GameRuleRegistry();
+    private @Nullable ManagementServer managementServer;
     private final FidorialContext metrics = new FidorialContext.Factory("6c8c21fe427163e998ea50f54a0ce855")
             .errorTrackerService(ERROR_TRACKER)
             .metrics(Metrics.Factory::create)
@@ -288,6 +301,7 @@ public final class FidorialServer implements Server {
             syncServerStatusToRegistries(true);
             if (!headless) {
                 network.bind();
+                startManagementServer();
                 startAutoSave();
                 console.setLocale(Locale.getDefault());
                 new ConsoleCommandReader(commandManager, running::get).start();
@@ -297,6 +311,7 @@ public final class FidorialServer implements Server {
                 pluginManager.enableAll();
             }
             events.post(new ServerStartedEvent(this));
+            managementNotifier.notifyServerStarted();
         } catch (final Exception e) {
             LOGGER.error("Startup interrupted, shutting down", e);
             shutdown();
@@ -310,6 +325,41 @@ public final class FidorialServer implements Server {
         chatTypes().started.getAndSet(started);
     }
 
+    private void startManagementServer() throws InterruptedException {
+        if (!config.managementServerEnabled()) {
+            return;
+        }
+        final SslContext ssl = config.managementServerTlsEnabled() ? loadManagementSsl() : null;
+        if (config.managementServerTlsEnabled() && ssl == null) {
+            LOGGER.error("management-server-tls-enabled is true but the keystore could not be loaded; the management API will not start.");
+            return;
+        }
+        managementServer = new ManagementServer(this, ssl, managementNotifier);
+        managementServer.bind();
+    }
+
+    private @Nullable SslContext loadManagementSsl() {
+        final Path keystorePath = config.managementServerTlsKeystore();
+        if (keystorePath == null) {
+            LOGGER.error("management-server-tls-enabled is true but management-server-tls-keystore is not set.");
+            return null;
+        }
+        final String password = config.managementServerTlsKeystorePassword();
+        try {
+            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            try (final FileInputStream in = new FileInputStream(keystorePath.toFile())) {
+                keyStore.load(in, password == null ? null : password.toCharArray());
+            }
+            final KeyManagerFactory keyManagerFactory =
+                    KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, password == null ? null : password.toCharArray());
+            return SslContextBuilder.forServer(keyManagerFactory).build();
+        } catch (final Exception e) {
+            LOGGER.error("Unable to load the management API keystore {}", keystorePath, e);
+            return null;
+        }
+    }
+
     @Override
     public void shutdown() {
         if (!running.compareAndSet(true, false)) {
@@ -318,6 +368,7 @@ public final class FidorialServer implements Server {
 
         LOGGER.info("Stopping the Fidorial server...");
         events.post(new ServerStoppingEvent(this));
+        managementNotifier.notifyServerStopping();
         onlinePlayers().forEach(player -> player.kick(Component.translatable("commands.stop.stopping")));
         syncServerStatusToRegistries(false);
 
@@ -327,6 +378,7 @@ public final class FidorialServer implements Server {
         closeQuietly("click callbacks", clickCallbackManager::close);
         closeQuietly("bossbars", bossBarRegistry::close);
         closeQuietly("day/night cycle", dayNightEngine::close);
+        closeQuietly("management api", this::shutdownManagementServer);
         closeQuietly("network", network::shutdown);
         closeQuietly("light engine", lightDispatcher::shutdown);
         closeQuietly("auto-save", autoSave::shutdownNow);
@@ -340,6 +392,12 @@ public final class FidorialServer implements Server {
         closeQuietly("metrics", metrics::shutdown);
 
         LOGGER.info("Fidorial shut down correctly.");
+    }
+
+    private void shutdownManagementServer() {
+        if (managementServer != null) {
+            managementServer.shutdown();
+        }
     }
 
     private @Nullable Favicon loadFavicon() {
@@ -545,6 +603,26 @@ public final class FidorialServer implements Server {
 
     public OperatorList operators() {
         return operators;
+    }
+
+    public ManagementNotifier managementNotifier() {
+        return managementNotifier;
+    }
+
+    public LiveServerSettings liveSettings() {
+        return liveSettings;
+    }
+
+    public GameRuleRegistry gameRules() {
+        return gameRules;
+    }
+
+    public FidorialWhitelist whitelist0() {
+        return fidorialWhitelist;
+    }
+
+    public FidorialBanManager ban0() {
+        return fidorialBanManager;
     }
 
     @Override

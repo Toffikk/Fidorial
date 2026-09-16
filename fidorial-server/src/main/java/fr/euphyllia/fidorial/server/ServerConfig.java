@@ -12,6 +12,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.UUID;
@@ -51,7 +54,15 @@ public record ServerConfig(
         boolean sparkEnabled,
         Path sparkPath,
         boolean generateStructures,
-        @Nullable Long levelSeed
+        @Nullable Long levelSeed,
+        boolean managementServerEnabled,
+        String managementServerHost,
+        int managementServerPort,
+        @Nullable String managementServerSecret,
+        List<String> managementServerAllowedOrigins,
+        boolean managementServerTlsEnabled,
+        @Nullable Path managementServerTlsKeystore,
+        @Nullable String managementServerTlsKeystorePassword
 ) {
 
     private static final ComponentLogger LOGGER = ComponentLogger.logger(ServerConfig.class);
@@ -130,7 +141,16 @@ public record ServerConfig(
                 true,
                 Path.of("spark"),
                 true,
-                null);
+                null,
+                false,
+                "localhost",
+                0,
+                null,
+                List.of(),
+                true,
+                null,
+                null
+        );
     }
 
     public static ServerConfig load() throws IOException {
@@ -186,7 +206,15 @@ public record ServerConfig(
                 readBool(props, "spark-enabled", defaults.sparkEnabled()),
                 Path.of(props.getProperty("spark-path", defaults.sparkPath().toString())),
                 readBool(props, "generate-structures", defaults.generateStructures()),
-                readSeed(props, "level-seed"));
+                readSeed(props, "level-seed"),
+                readBool(props, "management-server-enabled", defaults.managementServerEnabled()),
+                readString(props, "management-server-host", defaults.managementServerHost()),
+                readInt(props, "management-server-port", defaults.managementServerPort()),
+                resolveManagementSecret(props),
+                readStringList(props, "management-server-allowed-origins"),
+                readBool(props, "management-server-tls-enabled", defaults.managementServerTlsEnabled()),
+                readOptionalPath(props, "management-server-tls-keystore"),
+                readManagementKeystorePassword(props));
         LOGGER.info("Configuration loaded from {}", file);
         return config;
     }
@@ -312,6 +340,42 @@ public record ServerConfig(
         return raw == null || raw.isBlank() ? fallback : Boolean.parseBoolean(raw.strip());
     }
 
+    private static String resolveManagementSecret(final Properties props) {
+        final String raw = props.getProperty("management-server-secret");
+        if (raw != null && !raw.isBlank()) return raw.strip();
+        final String generated = generateSecret();
+        LOGGER.info("management-server-secret was empty; generated a new 40-character secret.");
+        return generated;
+    }
+
+    private static String generateSecret() {
+        final String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        final SecureRandom random = new SecureRandom();
+        final StringBuilder sb = new StringBuilder(40);
+        for (int i = 0; i < 40; i++) sb.append(alphabet.charAt(random.nextInt(alphabet.length())));
+        return sb.toString();
+    }
+
+    private static List<String> readStringList(final Properties props, final String key) {
+        final String raw = props.getProperty(key, "");
+        if (raw.isBlank()) return List.of();
+        return Arrays.stream(raw.split(",")).map(String::strip).filter(s -> !s.isEmpty()).toList();
+    }
+
+    private static @Nullable Path readOptionalPath(final Properties props, final String key) {
+        final String raw = props.getProperty(key);
+        return raw == null || raw.isBlank() ? null : Path.of(raw.strip());
+    }
+
+    private static @Nullable String readManagementKeystorePassword(final Properties props) {
+        final String env = System.getenv("MINECRAFT_MANAGEMENT_TLS_KEYSTORE_PASSWORD");
+        if (env != null && !env.isBlank()) return env;
+        final String sysProp = System.getProperty("management.tls.keystore.password");
+        if (sysProp != null && !sysProp.isBlank()) return sysProp;
+        final String raw = props.getProperty("management-server-tls-keystore-password");
+        return raw == null || raw.isBlank() ? null : raw;
+    }
+
     public void write(final Path file) throws IOException {
         final Properties props = new Properties();
         props.setProperty("port", Integer.toString(port));
@@ -349,6 +413,13 @@ public record ServerConfig(
         props.setProperty("spark-path", sparkPath.toString());
         props.setProperty("generate-structures", Boolean.toString(generateStructures));
         props.setProperty("level-seed", levelSeed == null ? "" : Long.toString(levelSeed));
+        props.setProperty("management-server-enabled", Boolean.toString(managementServerEnabled));
+        props.setProperty("management-server-host", managementServerHost);
+        props.setProperty("management-server-port", Integer.toString(managementServerPort));
+        props.setProperty("management-server-secret", managementServerSecret == null ? "" : managementServerSecret);
+        props.setProperty("management-server-allowed-origins", String.join(",", managementServerAllowedOrigins));
+        props.setProperty("management-server-tls-enabled", Boolean.toString(managementServerTlsEnabled));
+        props.setProperty("management-server-tls-keystore", managementServerTlsKeystore == null ? "" : managementServerTlsKeystore.toString());
         try (final OutputStream out = Files.newOutputStream(file)) {
             props.store(out, "Configuration Fidorial");
         }

@@ -39,6 +39,8 @@ module fr.fidorial.server {
     requires java.logging;
     requires java.instrument;
     requires fr.fidorial.bootstrap;
+    requires io.netty.codec.http;
+    requires io.netty.handler;
 
     opens fr.euphyllia.fidorial.server.tests to fr.fidorial;
 }

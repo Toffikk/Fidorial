@@ -178,7 +178,9 @@ public final class ServerPlayer extends AbstractLivingEntity implements Player, 
     }
 
     private void updateClientPermissionLevel() {
-        final int level = isOperator() ? 4 : 0;
+        final int level = isOperator()
+                ? connection.server().operators().permissionLevel(uuid())
+                : 0;
         connection.send(new ClientboundEntityEventPacket(entityId(), (byte) (24 + level)));
     }
 
