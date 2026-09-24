@@ -58,40 +58,35 @@ public final class ChunkStorage implements AutoCloseable {
 
     public @Nullable ChunkColumn load(final Dimension dim, final int chunkX, final int chunkZ, final int minY, final int height) throws IOException {
         final RegionFile rf = region(dim, chunkX, chunkZ);
-        synchronized (rf) {
-            if (!rf.hasChunk(chunkX, chunkZ)) return null;
-            CompoundBinaryTag nbt = rf.readChunk(chunkX, chunkZ);
-            if (nbt == null) return null;
+        if (!rf.hasChunk(chunkX, chunkZ)) return null;
 
-            final int sourceVersion = nbt.getInt("DataVersion");
-            final int latest = DataFixersRegistry.latestDataFixerVersion();
-            if (sourceVersion < latest) {
-                final MapType fixed = DataFixersRegistry.update(
-                        DataFixerType.CHUNK, NbtMapType.of(nbt), sourceVersion);
-                nbt = ((NbtMapType) fixed).toCompound().putInt("DataVersion", latest);
-            }
+        CompoundBinaryTag nbt = rf.readChunk(chunkX, chunkZ);
+        if (nbt == null) return null;
 
-            return serializer.fromNbt(nbt, minY, height, defaultBlock, defaultBiome);
+        final int sourceVersion = nbt.getInt("DataVersion");
+        final int latest = DataFixersRegistry.latestDataFixerVersion();
+        if (sourceVersion < latest) {
+            final MapType fixed = DataFixersRegistry.update(
+                    DataFixerType.CHUNK, NbtMapType.of(nbt), sourceVersion);
+            nbt = ((NbtMapType) fixed).toCompound().putInt("DataVersion", latest);
         }
+
+        return serializer.fromNbt(nbt, minY, height, defaultBlock, defaultBiome);
     }
 
     public void save(final Dimension dim, final ChunkColumn chunk) throws IOException {
         chunk.setLastUpdate(System.currentTimeMillis() / 20L); // en ticks approx.
         final CompoundBinaryTag nbt = serializer.toNbt(chunk);
         final RegionFile rf = region(dim, chunk.chunkX(), chunk.chunkZ());
-        synchronized (rf) {
-            rf.writeChunk(chunk.chunkX(), chunk.chunkZ(), nbt);
-        }
+        rf.writeChunk(chunk.chunkX(), chunk.chunkZ(), nbt);
     }
 
     @Override
     public void close() {
         for (final RegionFile rf : regionCache.values()) {
-            synchronized (rf) {
-                try {
-                    rf.close();
-                } catch (final IOException ignored) {
-                }
+            try {
+                rf.close();
+            } catch (final IOException ignored) {
             }
         }
         regionCache.clear();

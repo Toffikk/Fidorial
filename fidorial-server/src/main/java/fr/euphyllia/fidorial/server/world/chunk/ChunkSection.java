@@ -60,7 +60,7 @@ public final class ChunkSection {
 
     public void setBlock(final int x, final int y, final int z, final BlockState state) {
         final int i = blockIndex(x, y, z);
-        final BlockState previous = blocks.get(i);
+        final BlockState previous = blocks.getAndSet(i, state);
 
         final boolean wasAir = previous.isAir();
         final boolean isAir = state.isAir();
@@ -73,8 +73,6 @@ public final class ChunkSection {
 
         if (!wasFluid && isFluid) fluidCount++;
         else if (wasFluid && !isFluid) fluidCount--;
-
-        blocks.set(i, state);
     }
 
     public BlockState getBlock(final int x, final int y, final int z) {

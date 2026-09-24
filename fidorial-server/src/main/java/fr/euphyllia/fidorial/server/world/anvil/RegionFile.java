@@ -12,12 +12,16 @@ import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
@@ -25,14 +29,17 @@ import java.util.zip.InflaterInputStream;
 public final class RegionFile implements Closeable {
 
     private final RandomAccessFile raf;
+    private final FileChannel channel;
     private final int[] offsets = new int[RegionConstants.CHUNKS_PER_REGION];
     private final int[] sectorCounts = new int[RegionConstants.CHUNKS_PER_REGION];
     private final int[] timestamps = new int[RegionConstants.CHUNKS_PER_REGION];
     private boolean[] usedSectors = new boolean[0];
+    private final ReentrantReadWriteLock headerLock = new ReentrantReadWriteLock();
 
     public RegionFile(final Path path) throws IOException {
         Files.createDirectories(path.getParent());
         this.raf = new RandomAccessFile(path.toFile(), "rw");
+        this.channel = raf.getChannel();
 
         if (raf.length() < RegionConstants.HEADER_BYTES) {
             raf.setLength(RegionConstants.HEADER_BYTES);
@@ -58,8 +65,13 @@ public final class RegionFile implements Closeable {
         rebuildSectorMap();
     }
 
-    private void rebuildSectorMap() throws IOException {
-        final int totalSectors = (int) (raf.length() / RegionConstants.SECTOR_BYTES);
+    private void rebuildSectorMap() {
+        final int totalSectors;
+        try {
+            totalSectors = (int) (raf.length() / RegionConstants.SECTOR_BYTES);
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
         usedSectors = new boolean[Math.max(totalSectors, RegionConstants.HEADER_SECTORS)];
         usedSectors[0] = true;
         usedSectors[1] = true;
@@ -72,22 +84,65 @@ public final class RegionFile implements Closeable {
         }
     }
 
+    private void readFully(final ByteBuffer buf, final long position) throws IOException {
+        long pos = position;
+        while (buf.hasRemaining()) {
+            final int n = channel.read(buf, pos);
+            if (n < 0) {
+                throw new EOFException("Unexpected end of region file at position " + pos);
+            }
+            pos += n;
+        }
+    }
+
+    private void writeFully(final ByteBuffer buf, final long position) throws IOException {
+        long pos = position;
+        while (buf.hasRemaining()) {
+            pos += channel.write(buf, pos);
+        }
+    }
+
     public boolean hasChunk(final int chunkX, final int chunkZ) {
         final int i = RegionConstants.headerIndex(chunkX, chunkZ);
-        return offsets[i] != 0 && sectorCounts[i] != 0;
+        headerLock.readLock().lock();
+        try {
+            return offsets[i] != 0 && sectorCounts[i] != 0;
+        } finally {
+            headerLock.readLock().unlock();
+        }
     }
 
     public @Nullable CompoundBinaryTag readChunk(final int chunkX, final int chunkZ) throws IOException {
         final int i = RegionConstants.headerIndex(chunkX, chunkZ);
-        if (offsets[i] == 0 || sectorCounts[i] == 0) return null;
+        final int offset;
+        final int count;
+        headerLock.readLock().lock();
+        try {
+            offset = offsets[i];
+            count = sectorCounts[i];
+        } finally {
+            headerLock.readLock().unlock();
+        }
+        if (offset == 0 || count == 0) {
+            return null;
+        }
 
-        raf.seek((long) offsets[i] * RegionConstants.SECTOR_BYTES);
-        final int length = raf.readInt();
-        if (length <= 0) return null;
-        final byte compression = raf.readByte();
+        final long base = (long) offset * RegionConstants.SECTOR_BYTES;
 
-        final byte[] payload = new byte[length - 1];
-        raf.readFully(payload);
+        final ByteBuffer headerBuf = ByteBuffer.allocate(5);
+        readFully(headerBuf, base);
+        headerBuf.flip();
+        final int length = headerBuf.getInt();
+        if (length <= 0) {
+            return null;
+        }
+        final byte compression = headerBuf.get();
+
+        final ByteBuffer payloadBuf = ByteBuffer.allocate(length - 1);
+        readFully(payloadBuf, base + 5);
+        payloadBuf.flip();
+        final byte[] payload = new byte[payloadBuf.remaining()];
+        payloadBuf.get(payload);
 
         final DataInputStream in =
                 switch (compression) {
@@ -107,7 +162,13 @@ public final class RegionFile implements Closeable {
     }
 
     public int timestamp(final int chunkX, final int chunkZ) {
-        return timestamps[RegionConstants.headerIndex(chunkX, chunkZ)];
+        final int i = RegionConstants.headerIndex(chunkX, chunkZ);
+        headerLock.readLock().lock();
+        try {
+            return timestamps[i];
+        } finally {
+            headerLock.readLock().unlock();
+        }
     }
 
     public void writeChunk(final int chunkX, final int chunkZ, final CompoundBinaryTag chunk) throws IOException {
@@ -119,21 +180,32 @@ public final class RegionFile implements Closeable {
         }
 
         final int i = RegionConstants.headerIndex(chunkX, chunkZ);
+        final int start;
+        headerLock.writeLock().lock();
+        try {
+            freeSectors(offsets[i], sectorCounts[i]);
+            start = allocateSectors(neededSectors);
+        } finally {
+            headerLock.writeLock().unlock();
+        }
 
-        freeSectors(offsets[i], sectorCounts[i]);
-
-        final int start = allocateSectors(neededSectors);
-
-        raf.seek((long) start * RegionConstants.SECTOR_BYTES);
-        raf.write(frame);
+        final ByteBuffer dataBuf = ByteBuffer.wrap(frame);
+        writeFully(dataBuf, (long) start * RegionConstants.SECTOR_BYTES);
 
         final int pad = neededSectors * RegionConstants.SECTOR_BYTES - frame.length;
-        if (pad > 0) raf.write(new byte[pad]);
+        if (pad > 0) {
+            writeFully(ByteBuffer.allocate(pad), (long) start * RegionConstants.SECTOR_BYTES + frame.length);
+        }
 
-        offsets[i] = start;
-        sectorCounts[i] = neededSectors;
-        timestamps[i] = (int) (System.currentTimeMillis() / 1000L);
-        writeHeaderEntry(i);
+        headerLock.writeLock().lock();
+        try {
+            offsets[i] = start;
+            sectorCounts[i] = neededSectors;
+            timestamps[i] = (int) (System.currentTimeMillis() / 1000L);
+            writeHeaderEntry(i);
+        } finally {
+            headerLock.writeLock().unlock();
+        }
     }
 
     private byte[] buildFrame(final CompoundBinaryTag chunk) throws IOException {
@@ -184,15 +256,25 @@ public final class RegionFile implements Closeable {
     }
 
     private void writeHeaderEntry(final int i) throws IOException {
-        raf.seek((long) i * 4);
-        raf.writeInt((offsets[i] << 8) | (sectorCounts[i] & 0xFF));
-        raf.seek(RegionConstants.SECTOR_BYTES + (long) i * 4);
-        raf.writeInt(timestamps[i]);
+        final ByteBuffer entry = ByteBuffer.allocate(4);
+        entry.putInt((offsets[i] << 8) | (sectorCounts[i] & 0xFF));
+        entry.flip();
+        writeFully(entry, (long) i * 4);
+
+        final ByteBuffer ts = ByteBuffer.allocate(4);
+        ts.putInt(timestamps[i]);
+        ts.flip();
+        writeFully(ts, RegionConstants.SECTOR_BYTES + (long) i * 4);
     }
 
     @Override
     public void close() throws IOException {
-        raf.getFD().sync();
-        raf.close();
+        headerLock.writeLock().lock();
+        try {
+            raf.getFD().sync();
+            raf.close();
+        } finally {
+            headerLock.writeLock().unlock();
+        }
     }
 }

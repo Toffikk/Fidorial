@@ -1,6 +1,7 @@
 package fr.euphyllia.fidorial.server.world.chunk;
 
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import java.util.function.ToIntFunction;
 
 public final class PalettedContainer<T> {
 
-    private final List<T> palette = new ArrayList<>();
+    private final ObjectArrayList<T> palette = new ObjectArrayList<>();
     private final Object2IntOpenHashMap<T> lookup = new Object2IntOpenHashMap<>();
     private final int[] data;
     private final int minBits;
@@ -89,77 +90,99 @@ public final class PalettedContainer<T> {
         }
     }
 
-    public List<T> palette() {
-        final long stamp = lock.readLock();
+    public T getAndSet(final int index, final T value) {
+        final long stamp = lock.writeLock();
         try {
-            return List.copyOf(palette);
+            final T previous = palette.get(data[index]);
+            data[index] = indexOf(value);
+            return previous;
         } finally {
-            lock.unlockRead(stamp);
+            lock.unlockWrite(stamp);
         }
+    }
+
+    public List<T> palette() {
+        @SuppressWarnings("unchecked")
+        final T[] pal = (T[]) paletteArray;
+        return List.of(pal);
     }
 
     public boolean isSingleValue() {
-        final long stamp = lock.readLock();
-        try {
-            return palette.size() == 1;
-        } finally {
-            lock.unlockRead(stamp);
-        }
+        return paletteArray.length == 1;
     }
 
     public int bitsPerEntry() {
-        final long stamp = lock.readLock();
-        try {
-            return BitPacking.bitsFor(palette.size(), minBits);
-        } finally {
-            lock.unlockRead(stamp);
-        }
+        return BitPacking.bitsFor(paletteArray.length, minBits);
     }
 
     public long[] packedGlobal(final int bits, final ToIntFunction<T> mapper) {
-        final long stamp = lock.readLock();
-        try {
-            final int[] global = new int[data.length];
-            for (int i = 0; i < data.length; i++) {
-                global[i] = mapper.applyAsInt(palette.get(data[i]));
+        long stamp = lock.tryOptimisticRead();
+        Object[] pal = paletteArray;
+        int[] snapshot = data.clone();
+        if (stamp == 0L || !lock.validate(stamp)) {
+            stamp = lock.readLock();
+            try {
+                pal = paletteArray;
+                snapshot = data.clone();
+            } finally {
+                lock.unlockRead(stamp);
             }
-            return BitPacking.pack(global, bits);
-        } finally {
-            lock.unlockRead(stamp);
         }
+
+        @SuppressWarnings("unchecked")
+        final T[] typedPal = (T[]) pal;
+        final int[] global = new int[snapshot.length];
+        for (int i = 0; i < snapshot.length; i++) {
+            global[i] = mapper.applyAsInt(typedPal[snapshot[i]]);
+        }
+        return BitPacking.pack(global, bits);
     }
 
     public long @Nullable [] packedData() {
-        final long stamp = lock.readLock();
-        try {
-            if (palette.size() == 1) return null;
-            return BitPacking.pack(data, BitPacking.bitsFor(palette.size(), minBits));
-        } finally {
-            lock.unlockRead(stamp);
+        long stamp = lock.tryOptimisticRead();
+        int paletteSize = paletteArray.length;
+        int[] snapshot = data.clone();
+        if (stamp == 0L || !lock.validate(stamp)) {
+            stamp = lock.readLock();
+            try {
+                paletteSize = paletteArray.length;
+                snapshot = data.clone();
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
+
+        if (paletteSize == 1) return null;
+        return BitPacking.pack(snapshot, BitPacking.bitsFor(paletteSize, minBits));
     }
 
     public boolean contains(final Predicate<T> test) {
-        final long stamp = lock.readLock();
-        try {
-            for (final T value : palette) {
-                if (test.test(value)) return true;
-            }
-            return false;
-        } finally {
-            lock.unlockRead(stamp);
+        final Object[] pal = paletteArray;
+        for (final Object value : pal) {
+            @SuppressWarnings("unchecked")
+            final T typed = (T) value;
+            if (test.test(typed)) return true;
         }
+        return false;
     }
 
     public PalettedContainerSnapshot<T> snapshot() {
-        final long stamp = lock.readLock();
-        try {
-            @SuppressWarnings("unchecked")
-            final T[] pal = (T[]) paletteArray;
-            return new PalettedContainerSnapshot<>(Arrays.asList(pal), data.clone(), minBits);
-        } finally {
-            lock.unlockRead(stamp);
+        long stamp = lock.tryOptimisticRead();
+        Object[] pal = paletteArray;
+        int[] copy = data.clone();
+        if (stamp == 0L || !lock.validate(stamp)) {
+            stamp = lock.readLock();
+            try {
+                pal = paletteArray;
+                copy = data.clone();
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
+
+        @SuppressWarnings("unchecked")
+        final T[] typedPal = (T[]) pal;
+        return new PalettedContainerSnapshot<>(Arrays.asList(typedPal), copy, minBits);
     }
 
     public record PalettedContainerSnapshot<T>(List<T> palette, int[] data, int minBits) {

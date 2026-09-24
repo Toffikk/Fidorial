@@ -42,50 +42,40 @@ public final class EntityRegionStorage implements AutoCloseable {
     }
 
     public boolean hasChunk(final Dimension dim, final int chunkX, final int chunkZ) {
-        final RegionFile rf = region(dim, chunkX, chunkZ);
-        synchronized (rf) {
-            return rf.hasChunk(chunkX, chunkZ);
-        }
+        return region(dim, chunkX, chunkZ).hasChunk(chunkX, chunkZ);
     }
 
     public @Nullable CompoundBinaryTag load(final Dimension dim, final int chunkX, final int chunkZ) throws IOException {
         final RegionFile rf = region(dim, chunkX, chunkZ);
-        synchronized (rf) {
-            if (!rf.hasChunk(chunkX, chunkZ)) {
-                return null;
-            }
-            CompoundBinaryTag nbt = rf.readChunk(chunkX, chunkZ);
-            if (nbt == null) {
-                return null;
-            }
-
-            final int sourceVersion = nbt.getInt("DataVersion");
-            final int latest = DataFixersRegistry.latestDataFixerVersion();
-            if (sourceVersion < latest) {
-                final MapType fixed = DataFixersRegistry.update(
-                        DataFixerType.ENTITY, NbtMapType.of(nbt), sourceVersion);
-                nbt = ((NbtMapType) fixed).toCompound().putInt("DataVersion", latest);
-            }
-
-            return nbt;
+        if (!rf.hasChunk(chunkX, chunkZ)) {
+            return null;
         }
+        CompoundBinaryTag nbt = rf.readChunk(chunkX, chunkZ);
+        if (nbt == null) {
+            return null;
+        }
+
+        final int sourceVersion = nbt.getInt("DataVersion");
+        final int latest = DataFixersRegistry.latestDataFixerVersion();
+        if (sourceVersion < latest) {
+            final MapType fixed = DataFixersRegistry.update(
+                    DataFixerType.ENTITY, NbtMapType.of(nbt), sourceVersion);
+            nbt = ((NbtMapType) fixed).toCompound().putInt("DataVersion", latest);
+        }
+
+        return nbt;
     }
 
     public void save(final Dimension dim, final int chunkX, final int chunkZ, final CompoundBinaryTag nbt) throws IOException {
-        final RegionFile rf = region(dim, chunkX, chunkZ);
-        synchronized (rf) {
-            rf.writeChunk(chunkX, chunkZ, nbt);
-        }
+        region(dim, chunkX, chunkZ).writeChunk(chunkX, chunkZ, nbt);
     }
 
     @Override
     public void close() {
         for (final RegionFile rf : regionCache.values()) {
-            synchronized (rf) {
-                try {
-                    rf.close();
-                } catch (final IOException ignored) {
-                }
+            try {
+                rf.close();
+            } catch (final IOException ignored) {
             }
         }
         regionCache.clear();

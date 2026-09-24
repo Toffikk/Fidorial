@@ -200,7 +200,7 @@ public final class ChunkColumn {
         final BlockState previous = s.getBlock(localX, worldY & 15, localZ);
         s.setBlock(localX, worldY & 15, localZ, state);
 
-        if (previous.name().equals(state.name())) {
+        if (previous == state || previous.name().equals(state.name())) {
             return;
         }
 
