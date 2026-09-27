@@ -1,7 +1,9 @@
 import fr.euphyllia.fidorial.gradle.FidorialBuildExtension
+import fr.euphyllia.fidorial.gradle.signing.SignJarTask
 
 plugins {
     `java-library`
+    signing
 }
 
 val fidorialBuild = extensions.create<FidorialBuildExtension>("fidorialBuild")
@@ -59,4 +61,36 @@ tasks.withType<Javadoc>().configureEach {
             "$it=ALL-UNNAMED"
         )
     }
+}
+
+signing {
+    val signingKey = providers.environmentVariable("SIGNING_KEY")
+    val signingPassword = providers.environmentVariable("SIGNING_PASSWORD")
+
+    useInMemoryPgpKeys(
+        signingKey.orNull,
+        signingPassword.orNull,
+    )
+}
+
+fidorialBuild.jarSigning {
+    keyStore.convention(providers.environmentVariable("SIGNING_KEYSTORE"))
+    keyStorePassword.convention(providers.environmentVariable("SIGNING_KEYSTORE_PASSWORD"))
+    alias.convention(providers.environmentVariable("SIGNING_KEYSTORE_ALIAS"))
+}
+
+val signJar = tasks.register<SignJarTask>("signJar") {
+    group = "signing"
+    description = "Signs a jar using JarSigner"
+    enabled = false
+
+    javaLauncher.set(javaToolchains.launcherFor(java.toolchain))
+
+    keyStore.set(fidorialBuild.jarSigning.keyStore)
+    keyStorePassword.set(fidorialBuild.jarSigning.keyStorePassword)
+    alias.set(fidorialBuild.jarSigning.alias)
+}
+
+tasks.assemble {
+    dependsOn(signJar)
 }

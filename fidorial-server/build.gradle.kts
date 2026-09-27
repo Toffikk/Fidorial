@@ -162,6 +162,12 @@ val bootstrapJar =
         }
     }
 
+tasks.signJar {
+    //enabled = true
+    inputJar.set(bootstrapJar.flatMap { it.archiveFile })
+    outputJar.set(layout.buildDirectory.file("Fidorial-${project.version}.jar"))
+}
+
 tasks.assemble {
     dependsOn(bootstrapJar)
 }

@@ -32,6 +32,10 @@ java {
     }
 }
 
+signing {
+    sign(publishing.publications)
+}
+
 tasks.javadoc {
     val adventureVersion =
         libs.versions.adventure
