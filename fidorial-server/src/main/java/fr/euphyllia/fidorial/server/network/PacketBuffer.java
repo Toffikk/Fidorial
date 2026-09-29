@@ -182,7 +182,7 @@ public final class PacketBuffer {
         return this;
     }
 
-    public PacketBuffer writeShort(final int v) {
+    public PacketBuffer writeShort(final short v) {
         buf.writeShort(v);
         return this;
     }

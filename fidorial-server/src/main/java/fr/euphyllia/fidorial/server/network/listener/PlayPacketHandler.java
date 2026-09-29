@@ -1305,6 +1305,7 @@ public final class PlayPacketHandler implements PlayPacketListener {
 
     private void trackFall(final Location previous, final Location current, final boolean wasOnGround, final boolean isOnGround) {
         if (wasOnGround && isOnGround) return;
+        final BlockPos currentBlock = new BlockPos((int) current.x(), (int) current.y(), (int) current.z());
 
         if (player.gameMode() == GameMode.CREATIVE || player.gameMode() == GameMode.SPECTATOR) {
             player.setFallDistance(0.0);

@@ -71,4 +71,13 @@ public interface NetworkCodec<B, T> {
                     value.ifPresent(present -> write(buf, present));
                 });
     }
+
+    /**
+     * A codec for values the server only ever sends; reading fails.
+     */
+    static <B, T> NetworkCodec<B, T> writeOnly(final BiConsumer<B, T> writer) {
+        return of(_ -> {
+            throw new UnsupportedOperationException("write-only codec");
+        }, writer);
+    }
 }

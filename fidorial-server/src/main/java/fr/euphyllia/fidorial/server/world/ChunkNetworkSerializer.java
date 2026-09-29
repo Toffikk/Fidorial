@@ -80,7 +80,7 @@ public final class ChunkNetworkSerializer {
 
         for (final BlockEntity blockEntity : encodable) {
             p.writeByte(blockEntity.packedXz());
-            p.writeShort(blockEntity.y());
+            p.writeShort((short) blockEntity.y());
             p.writeVarInt(blockEntity.protocolId());
             p.writeNbt(blockEntity.data());
             LOGGER.debug("BlockEntity : {} protocolId : {}", blockEntity.type(), blockEntity.protocolId());
@@ -139,8 +139,8 @@ public final class ChunkNetworkSerializer {
             }
         }
 
-        sp.writeShort(nonAir);   // nonEmptyBlockCount
-        sp.writeShort(fluid);    // fluidCount
+        sp.writeShort((short) nonAir);   // nonEmptyBlockCount
+        sp.writeShort((short) fluid);    // fluidCount
 
 
         if (snap.palette().size() == 1) {

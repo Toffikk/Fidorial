@@ -35,7 +35,7 @@ public record ClientboundContainerSetSlotPacket(
     public void write(final PacketBuffer buf) {
         buf.writeVarInt(windowId);
         buf.writeVarInt(stateId);
-        buf.writeShort(slot);
+        buf.writeShort((short) slot);
         ItemStackWriter.writeSlot(buf, stack, frozen);
     }
 }
