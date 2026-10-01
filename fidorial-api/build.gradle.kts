@@ -1,3 +1,5 @@
+import fr.euphyllia.fidorial.gradle.libraries.GenerateApiPackageIndexTask
+
 plugins {
     `maven-publish`
     id("fidorial-spotless")
@@ -71,6 +73,29 @@ tasks.javadoc {
         "MIT © 2026 Euphyllia Bierque — " +
             "<a href=\"https://github.com/Euphillya/Fidorial\">GitHub</a>",
     )
+}
+
+val apiResolvable =
+    configurations.resolvable("apiResolvable") {
+        extendsFrom(configurations.api)
+    }
+
+val generateApiPackageIndex =
+    tasks.register<GenerateApiPackageIndexTask>("generateApiPackageIndex") {
+        group = "build"
+        description = "Records which packages plugins must always load from the server."
+        apiSurface.from(tasks.jar, apiResolvable)
+        outputDirectory.set(layout.buildDirectory.dir("generated/fidorial-api-index"))
+    }
+
+configurations.consumable("apiSurfaceIndex") {
+    description = "Packages the server must load parent-first for plugins"
+    attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, named(GenerateApiPackageIndexTask.API_PACKAGE_INDEX_CATEGORY))
+    }
+    outgoing.artifact(generateApiPackageIndex.flatMap { it.outputDirectory }) {
+        type = ArtifactTypeDefinition.DIRECTORY_TYPE
+    }
 }
 
 publishing {

@@ -54,4 +54,8 @@ abstract class GenerateApiPackageIndexTask : DefaultTask() {
         )
         logger.lifecycle("API package index: ${packages.size} packages")
     }
+
+    companion object {
+        const val API_PACKAGE_INDEX_CATEGORY = "apiPackageIndex"
+    }
 }

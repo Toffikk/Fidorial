@@ -97,7 +97,6 @@ class PluginLibrariesPlugin : Plugin<Project> {
             )
         }
 
-        project.extensions.getByType<JavaPluginExtension>()
         project.extensions.getByType<SourceSetContainer>().named("main") {
             resources.srcDir(lock)
         }

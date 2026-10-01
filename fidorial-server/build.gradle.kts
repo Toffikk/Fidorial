@@ -22,7 +22,7 @@ val bootstrapLauncher =
     }
 
 configurations.implementation {
-    extendsFrom(apiSurface, bootstrapLauncher)
+    extendsFrom(bootstrapLauncher)
 }
 
 repositories {
@@ -31,7 +31,7 @@ repositories {
 }
 
 dependencies {
-    apiSurface(projects.fidorialApi)
+    implementation(projects.fidorialApi)
 
     implementation(libs.faststats.config)
     implementation(libs.faststats.core)
@@ -62,6 +62,7 @@ dependencies {
 
     annotationProcessor(projects.fidorialAnnotationProcessor)
 
+    apiSurface(projects.fidorialApi)
     bootstrapLauncher(projects.fidorialBootstrap)
 }
 
@@ -105,18 +106,13 @@ java {
 val apiSurfaceResolvable =
     configurations.resolvable("apiSurfaceResolvable") {
         extendsFrom(apiSurface)
-    }
-
-val generateApiPackageIndex =
-    tasks.register<GenerateApiPackageIndexTask>("generateApiPackageIndex") {
-        group = "build"
-        description = "Records which packages plugins must always load from the server."
-        apiSurface.from(apiSurfaceResolvable)
-        outputDirectory.set(layout.buildDirectory.dir("generated/fidorial-api-index"))
+        attributes {
+            attribute(Category.CATEGORY_ATTRIBUTE, named(GenerateApiPackageIndexTask.API_PACKAGE_INDEX_CATEGORY))
+        }
     }
 
 sourceSets.main {
-    resources.srcDir(generateApiPackageIndex)
+    resources.srcDir(apiSurfaceResolvable)
 }
 
 val bootstrapPayload =
