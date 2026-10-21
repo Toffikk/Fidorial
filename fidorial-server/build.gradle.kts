@@ -31,7 +31,9 @@ repositories {
 }
 
 dependencies {
-    apiSurface(projects.fidorialApi)
+    apiSurface(projects.fidorialApi) {
+        exclude(group = "net.kyori", module = "adventure-api")
+    }
 
     implementation(libs.faststats.config)
     implementation(libs.faststats.core)

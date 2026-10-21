@@ -8,18 +8,14 @@ import fr.euphyllia.fidorial.server.world.ServerWorldManager;
 import fr.fidorial.scheduler.RegionTickHandler;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import org.jspecify.annotations.Nullable;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class EntityTickHandler implements RegionTickHandler {
 
     private static final ComponentLogger LOGGER = ComponentLogger.logger(EntityTickHandler.class);
 
     private final ServerWorldManager worldManager;
-    private final Map<Key, ServerWorld> worldsById = new ConcurrentHashMap<>();
     private final FidorialServer server;
 
     public EntityTickHandler(final ServerWorldManager worldManager, final FidorialServer fidorialServer) {
@@ -29,7 +25,7 @@ public final class EntityTickHandler implements RegionTickHandler {
 
     @Override
     public void tick(final Key worldId, final int sectionX, final int sectionZ, final long currentTick) {
-        final ServerWorld world = worldById(worldId);
+        final ServerWorld world = worldManager.world(worldId);
         if (world == null) {
             return;
         }
@@ -41,6 +37,10 @@ public final class EntityTickHandler implements RegionTickHandler {
                 continue;
             }
             try {
+                entity.runScheduledTasks();
+                if (!entity.isOwnedByCurrentThread()) {
+                    continue; // a task moved or removed it
+                }
                 entity.tick(currentTick);
                 if (entity instanceof final AbstractMovingMob mob) {
                     server.debug().entities().tick(mob);
@@ -56,19 +56,5 @@ public final class EntityTickHandler implements RegionTickHandler {
                 }
             }
         }
-    }
-
-    private @Nullable ServerWorld worldById(final Key id) {
-        final ServerWorld cached = worldsById.get(id);
-        if (cached != null) {
-            return cached;
-        }
-        for (final ServerWorld world : worldManager.worlds()) {
-            if (world.dimension().id().equals(id)) {
-                worldsById.put(id, world);
-                return world;
-            }
-        }
-        return null;
     }
 }

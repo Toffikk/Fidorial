@@ -174,7 +174,7 @@ public record ServerConfiguration(
         private static final int CPUS = Runtime.getRuntime().availableProcessors();
 
         static final Threading DEFAULTS = new Threading(
-                Math.max(2, CPUS / 2), Math.max(2, CPUS / 8), Math.max(2, CPUS / 8), Math.max(2, CPUS / 8), 5);
+                Math.max(2, CPUS / 2), Math.max(2, CPUS / 8), Math.max(2, CPUS / 8), Math.max(2, CPUS / 8), 0);
 
         static final Codec<Threading> CODEC = configRecord(Threading.class, DEFAULTS)
                 .field("region-workers", Threading::regionWorkers, commented(CommonCodecs.POSITIVE_INT,

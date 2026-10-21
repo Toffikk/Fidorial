@@ -1,9 +1,11 @@
 package fr.euphyllia.fidorial.server.world;
 
+import fr.euphyllia.fidorial.server.FidorialServer;
 import fr.euphyllia.fidorial.server.world.chunk.BlockState;
 import fr.euphyllia.fidorial.server.world.chunk.ChunkColumn;
 import fr.fidorial.world.Chunk;
 import fr.fidorial.world.World;
+import org.jspecify.annotations.Nullable;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -65,7 +67,7 @@ public final class ServerChunk implements Chunk {
             column.setBlock(localX & 15, worldY, localZ & 15, state);
             world.markDirty(column.chunkX(), column.chunkZ());
             future.complete(true);
-        });
+        }, () -> future.complete(false));
         if (!scheduled) future.complete(false);
         return future;
     }
@@ -94,21 +96,27 @@ public final class ServerChunk implements Chunk {
     }
 
     @Override
-    public boolean execute(final Runnable task) {
-        if (world.isChunkLoaded(column.chunkX(), column.chunkZ())) {
-            world().scheduler().execute(world().key(), pos(), task);
-            return true;
-        }
-        return false;
+    public boolean execute(final Runnable task, final @Nullable Runnable retired) {
+        return executeDelayed(task, retired, 0L);
     }
 
     @Override
-    public boolean executeDelayed(final Runnable task, final long delayTicks) {
-        if (world.isChunkLoaded(column.chunkX(), column.chunkZ())) {
-            world().scheduler().executeDelayed(world().key(), pos(), task, delayTicks);
-            return true;
+    public boolean executeDelayed(final Runnable task, final @Nullable Runnable retired, final long delayTicks) {
+        if (!isLoaded()) {
+            return false;
         }
-        return false;
+        return world.scheduler().executeDelayed(world.key(), pos(), () -> {
+            if (isLoaded()) {
+                task.run();
+            } else if (retired != null) {
+                retired.run();
+            }
+        }, delayTicks);
+    }
+
+    private boolean isLoaded() {
+        return world.loadedColumn(column.chunkX(), column.chunkZ()) == column
+                && FidorialServer.getInstance().worlds().manager().world(world.key()) == world; // identity check; not key
     }
 
     @Override

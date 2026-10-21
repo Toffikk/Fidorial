@@ -288,7 +288,7 @@ public final class ServerWorld implements World {
     }
 
     public void addEntity(final AbstractEntity entity) {
-        ThreadContexts.checkOwnedByCurrentThread(entity, "addEntity");
+        ThreadContexts.checkOwnedByCurrentThread(this, entity.chunk(), "addEntity");
         entities.add(entity);
         markEntitiesDirty(entity.chunk().x(), entity.chunk().z());
         if (entity instanceof ServerPlayer) {
@@ -511,6 +511,7 @@ public final class ServerWorld implements World {
         final EntitySpawnBridge bridge = this.entityBridge;
         for (final AbstractEntity entity : inChunk) {
             entities.remove(entity);
+            entity.retireTasks();
 
             if (entity instanceof ServerPlayer) {
                 invalidateAudiences();

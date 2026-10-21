@@ -10,6 +10,7 @@ import fr.fidorial.entity.player.profile.PlayerProfile;
 import fr.fidorial.inventory.EnderChestInventory;
 import fr.fidorial.inventory.PlayerInventory;
 import fr.fidorial.math.Location;
+import fr.fidorial.world.ChunkPos;
 
 import java.util.UUID;
 
@@ -30,10 +31,21 @@ final class ScenarioTestPlayer {
 
         connection.setProfile(profile);
         connection.setPlayer(player);
-        ((ServerWorld) location.world()).addEntity(player);
-        connection.bindMockPlayer(player);
-        server.players().connect(connection);
-        player.invalidatePermissions();
+
+        final ServerWorld world = (ServerWorld) location.world();
+        final ChunkPos chunk = location.chunk();
+        final Runnable join = () -> {
+            world.addEntity(player);
+            connection.bindMockPlayer(player);
+            server.players().connect(connection);
+            player.invalidatePermissions();
+        };
+
+        if (world.scheduler().isOwnedByCurrentThread(world.key(), chunk)) {
+            join.run();
+        } else if (!world.scheduler().execute(world.key(), chunk, join)) {
+            throw new IllegalStateException("Could not schedule the spawn of " + name + " at " + location);
+        }
         return player;
     }
 

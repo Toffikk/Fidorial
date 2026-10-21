@@ -45,10 +45,12 @@ public final class EntityManager {
         bySection
                 .computeIfAbsent(sectionKey(chunk), _ -> ConcurrentHashMap.newKeySet())
                 .add(entity);
+        entity.setInWorld(true);
     }
 
     @ApiStatus.Internal
     public void remove(final AbstractEntity entity) {
+        entity.setInWorld(false);
         byId.remove(entity.entityId());
         byUuid.remove(entity.uuid());
         final ChunkPos chunk = entity.chunk();

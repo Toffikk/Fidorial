@@ -15,7 +15,6 @@ import fr.fidorial.math.Location;
 import fr.fidorial.registry.keys.GameRuleKeys;
 import fr.fidorial.testing.ScenarioTestHelper;
 import fr.fidorial.testing.annotation.ScenarioTest;
-import fr.fidorial.world.ChunkPos;
 import fr.fidorial.world.World;
 import fr.fidorial.world.WorldSpec;
 import net.kyori.adventure.key.Key;
@@ -25,9 +24,9 @@ import net.kyori.adventure.nbt.TagStringIO;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -114,18 +113,18 @@ public final class GameRuleTests {
     @ScenarioTest(timeoutTicks = 20)
     public static void changeEventDescribesTheChange(final ScenarioTestHelper helper) {
         final FidorialGameRules rules = FidorialServer.getInstance().worlds().gameRules();
-        final List<GameRuleChangeEvent> seen = new ArrayList<>();
+        final List<GameRuleChangeEvent> seen = new CopyOnWriteArrayList<>();
         final Subscription subscription = FidorialServer.getInstance().events().subscribe(GameRuleChangeEvent.class, event -> {
-            if (event.rule().key().equals(GameRuleKeys.SPAWN_PATROLS)) {
+            if (event.rule().key().equals(GameRuleKeys.RAIDS)) {
                 seen.add(event);
             }
         });
         try {
-            rules.setBoolean(GameRuleKeys.SPAWN_PATROLS, false);
-            rules.setBoolean(GameRuleKeys.SPAWN_PATROLS, false);
+            rules.setBoolean(GameRuleKeys.RAIDS, false);
+            rules.setBoolean(GameRuleKeys.RAIDS, false);
         } finally {
             subscription.unsubscribe();
-            rules.reset(GameRuleKeys.SPAWN_PATROLS);
+            rules.reset(GameRuleKeys.RAIDS);
         }
         helper.assertTrue(seen.size() == 1, "Expected one event, a no-op change fires none, got " + seen.size());
         final GameRuleChangeEvent event = seen.getFirst();
@@ -193,7 +192,7 @@ public final class GameRuleTests {
         final FidorialGameRules base = FidorialServer.getInstance().worlds().gameRules();
         final World other = overridingWorld();
         final WorldGameRules otherRules = other.gameRules();
-        final List<GameRuleChangeEvent> seen = new ArrayList<>();
+        final List<GameRuleChangeEvent> seen = new CopyOnWriteArrayList<>();
         final Subscription subscription = FidorialServer.getInstance().events().subscribe(GameRuleChangeEvent.class, event -> {
             if (event.rule().key().equals(GameRuleKeys.SPAWN_PATROLS)) {
                 seen.add(event);
@@ -238,7 +237,7 @@ public final class GameRuleTests {
                 .execute(() -> teleport.set(player.teleport(destination)))
                 .waitUntil(() -> teleport.get().isDone() && player.world().equals(other),
                         "Expected the player to reach the world overriding fall_damage")
-                .execute(() -> helper.assertTrue(other.scheduler().execute(other.key(), new ChunkPos(0, 0), () -> {
+                .execute(() -> helper.assertTrue(player.execute(() -> {
                     other.gameRules().setBoolean(GameRuleKeys.FALL_DAMAGE, false);
                     try {
                         final boolean hurtWhenDisabled = player.damage(DamageSource.fall(), 4f);
@@ -250,7 +249,7 @@ public final class GameRuleTests {
                     } finally {
                         other.gameRules().removeOverride(GameRuleKeys.FALL_DAMAGE);
                     }
-                }), "Expected the damage to be scheduled in the other world"))
+                }, () -> hurt.complete(true)), "Expected the damage to be scheduled in the other world"))
                 .waitUntil(hurt::isDone, "Expected the fall damage to be applied in the other world")
                 .execute(() -> helper.assertTrue(!hurt.join(), "Expected no fall damage where fall_damage is overridden to false"))
                 .execute(() -> helper.assertTrue(hurtWhenOverriddenToTrue.get(), "Expected fall damage where fall_damage is overridden to true"))
