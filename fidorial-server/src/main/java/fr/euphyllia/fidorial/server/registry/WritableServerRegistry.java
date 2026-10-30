@@ -156,9 +156,7 @@ public final class WritableServerRegistry<T> extends ServerRegistry<T> implement
             if (owned.isEmpty() && !tagsTouched) {
                 return;
             }
-            if (owned.isEmpty()) {
-                snapshot = Snapshot.of(current.byId, effectiveTags());
-                change = "Tag changes of " + owner.getClass().getSimpleName() + " rolled back";
+            if (owned.isEmpty()) {snapshot = Snapshot.of(current.byId, effectiveTags());change = "Tag changes of " + owner.getClass().getSimpleName() + " rolled back";
             } else {
                 change = remove(current, owned);
             }
@@ -276,8 +274,7 @@ public final class WritableServerRegistry<T> extends ServerRegistry<T> implement
         if (removed.size() > 1) {
             return removed.size() + " entries unregistered";
         }
-        return removed.getFirst().key.asString() + (restored ? " restored to vanilla" : " unregistered");
-    }
+        return removed.getFirst().key.asString() + (restored ? " restored to vanilla" : " unregistered");}
 
     private Key check(final TypedKey<T> key, final T value, final Plugin owner) {
         Objects.requireNonNull(key, "key");
@@ -290,7 +287,11 @@ public final class WritableServerRegistry<T> extends ServerRegistry<T> implement
         }
         data.validator().validate(registries, key.key(), value);
         // Fails now rather than when a player joins.
-        data.codec().encode(key.key(), value);
+        data.codec().encode(
+                key.
+                        key()
+                , value
+        );
         return key.key();
     }
 
