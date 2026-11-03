@@ -1,6 +1,9 @@
 package fr.fidorial.recipe;
 
 import fr.fidorial.item.ItemStack;
+import fr.fidorial.registry.TagKey;
+import fr.fidorial.registry.TypedKey;
+import fr.fidorial.registry.data.Item;
 import net.kyori.adventure.key.Key;
 import org.jetbrains.annotations.ApiStatus;
 
@@ -28,7 +31,7 @@ public interface Ingredient {
      * @throws IllegalArgumentException if {@code items} is empty
      * @since 0.1.0
      */
-    static Ingredient of(final Key... items) {
+    static Ingredient of(final TypedKey<Item>... items) {
         return of(Arrays.asList(items));
     }
 
@@ -38,7 +41,7 @@ public interface Ingredient {
      * @throws IllegalArgumentException if {@code items} is empty
      * @since 0.1.0
      */
-    static Ingredient of(final Collection<Key> items) {
+    static Ingredient of(final Collection<TypedKey<Item>> items) {
         return RecipeFactory.factory().items(items);
     }
 
@@ -47,7 +50,7 @@ public interface Ingredient {
      * @return an ingredient taking one of any item of the tag
      * @since 0.1.0
      */
-    static Ingredient tag(final Key tag) {
+    static Ingredient tag(final TagKey<Item> tag) {
         return RecipeFactory.factory().tag(tag);
     }
 

@@ -127,6 +127,7 @@ public final class WritableServerRegistry<T> extends ServerRegistry<T> implement
     @Override
     public boolean unregister(final TypedKey<T> key) {
         Objects.requireNonNull(key, "key");
+        checkRegistry(key.registry());
         final String change;
         synchronized (this) {
             final Snapshot<T> current = snapshot;
@@ -292,12 +293,6 @@ public final class WritableServerRegistry<T> extends ServerRegistry<T> implement
         // Fails now rather than when a player joins.
         data.codec().encode(key.key(), value);
         return key.key();
-    }
-
-    private void checkRegistry(final RegistryKey<?> registry) {
-        if (!registry.key().equals(name())) {
-            throw new IllegalArgumentException(registry.key().asString() + " is not " + name().asString());
-        }
     }
 
     private void changed(final String change) {

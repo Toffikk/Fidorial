@@ -5,17 +5,19 @@ import fr.euphyllia.fidorial.server.world.BlockStateRegistry;
 import fr.euphyllia.fidorial.server.world.chunk.BlockState;
 import fr.fidorial.math.BlockPosition;
 import fr.fidorial.math.Position;
+import fr.fidorial.registry.RegistryKey;
+import fr.fidorial.registry.TypedKey;
+import fr.fidorial.registry.data.BlockType;
 import fr.fidorial.registry.keys.BlockTypeKeys;
 import fr.fidorial.testing.ScenarioTestHelper;
 import fr.fidorial.testing.annotation.ScenarioTest;
 import fr.fidorial.world.World;
-import net.kyori.adventure.key.Key;
 
 @SuppressWarnings("unused")
 public final class BlockStateTests {
 
-    private static final Key STONE = Key.key("stone");
-    private static final Key COBBLESTONE = Key.key("cobblestone");
+    private static final TypedKey<BlockType> STONE = TypedKey.withRegistry(RegistryKey.BLOCK, "stone");
+    private static final TypedKey<BlockType> COBBLESTONE = TypedKey.withRegistry(RegistryKey.BLOCK, "cobblestone");
 
     @ScenarioTest(timeoutTicks = 20)
     public static void belowWorldIsAir(final ScenarioTestHelper helper) {
@@ -43,7 +45,7 @@ public final class BlockStateTests {
     //@ScenarioTest(timeoutTicks = 80) disabled for now as setBlockStateId doesnt send light updates
     public static void reopeningVerticalShaftRestoresSkylight(final ScenarioTestHelper helper) {
         final World world = helper.world();
-        final int airId = FidorialServer.getInstance().registries().blockStates().networkId(BlockState.of(BlockTypeKeys.AIR.key()));
+        final int airId = FidorialServer.getInstance().registries().blockStates().networkId(BlockState.withoutProperties(BlockTypeKeys.AIR));
         final int cobblestoneId = cobblestoneId();
         final int x = 8;
         final int z = 8;
@@ -66,12 +68,12 @@ public final class BlockStateTests {
 
     private static int stoneId() {
         final BlockStateRegistry registry = FidorialServer.getInstance().registries().blockStates();
-        return registry.networkId(BlockState.of(STONE));
+        return registry.networkId(BlockState.withoutProperties(STONE));
     }
 
     private static int cobblestoneId() {
         final BlockStateRegistry registry = FidorialServer.getInstance().registries().blockStates();
-        return registry.networkId(BlockState.of(COBBLESTONE));
+        return registry.networkId(BlockState.withoutProperties(COBBLESTONE));
     }
 
     private static void assertSkyLight(final ScenarioTestHelper helper, final BlockPosition pos, final int expected) {

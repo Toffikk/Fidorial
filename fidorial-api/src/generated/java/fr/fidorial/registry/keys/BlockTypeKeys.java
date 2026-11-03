@@ -7885,7 +7885,7 @@ public final class BlockTypeKeys {
     }
 
     private static TypedKey<BlockType> create(@KeyPattern final String value) {
-        return TypedKey.create(RegistryKey.BLOCK, value);
+        return TypedKey.withRegistry(RegistryKey.BLOCK, value);
     }
 
     /**

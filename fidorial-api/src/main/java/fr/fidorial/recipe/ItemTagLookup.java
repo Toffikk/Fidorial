@@ -1,5 +1,8 @@
 package fr.fidorial.recipe;
 
+import fr.fidorial.registry.TagKey;
+import fr.fidorial.registry.TypedKey;
+import fr.fidorial.registry.data.Item;
 import net.kyori.adventure.key.Key;
 
 /**
@@ -26,5 +29,5 @@ public interface ItemTagLookup {
      * @return {@code true} when {@code item} is a member of {@code tag}
      * @since 0.1.0
      */
-    boolean isTagged(Key tag, Key item);
+    boolean isTagged(TagKey<Item> tag, TypedKey<Item> item);
 }

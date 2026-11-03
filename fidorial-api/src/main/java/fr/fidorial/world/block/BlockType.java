@@ -1,6 +1,6 @@
 package fr.fidorial.world.block;
 
-import net.kyori.adventure.key.Key;
+import fr.fidorial.registry.TypedKey;
 import org.jspecify.annotations.Nullable;
 
 import java.lang.reflect.InvocationHandler;
@@ -23,14 +23,14 @@ import java.util.Map;
  */
 public final class BlockType {
 
-    private final Key key;
+    private final TypedKey<fr.fidorial.registry.data.BlockType> key;
     private final List<BlockProperty> properties;
     private final int[] stateIds;
     private final int defaultOrdinal;
     private final Class<?>[] interfaces;
     private final @Nullable BlockData defaultData;
 
-    private BlockType(final Key key, final List<BlockProperty> properties, final int[] stateIds, final int defaultOrdinal,
+    private BlockType(final TypedKey<fr.fidorial.registry.data.BlockType> key, final List<BlockProperty> properties, final int[] stateIds, final int defaultOrdinal,
                       final List<Class<? extends BlockData>> traits) {
         this.key = key;
         this.properties = List.copyOf(properties);
@@ -70,7 +70,7 @@ public final class BlockType {
      * @throws IllegalArgumentException if the identifiers do not match the property combinations
      * @since 0.1.0
      */
-    public static BlockType of(final Key key, final List<BlockProperty> properties, final int[] stateIds, final int defaultOrdinal) {
+    public static BlockType of(final TypedKey<fr.fidorial.registry.data.BlockType> key, final List<BlockProperty> properties, final int[] stateIds, final int defaultOrdinal) {
         return new BlockType(key, properties, stateIds, defaultOrdinal, BlockTraits.detect(properties));
     }
 
@@ -80,7 +80,7 @@ public final class BlockType {
      * @param key the block key
      * @since 0.1.0
      */
-    public static Builder builder(final Key key) {
+    public static Builder builder(final TypedKey<fr.fidorial.registry.data.BlockType> key) {
         return new Builder(key);
     }
 
@@ -89,7 +89,7 @@ public final class BlockType {
      *
      * @since 0.1.0
      */
-    public Key key() {
+    public TypedKey<fr.fidorial.registry.data.BlockType> key() {
         return key;
     }
 
@@ -310,7 +310,7 @@ public final class BlockType {
         }
     }
 
-    private static int ordinalOf(final Key key, final List<BlockProperty> properties, final Map<String, String> values) {
+    private static int ordinalOf(final TypedKey<fr.fidorial.registry.data.BlockType> key, final List<BlockProperty> properties, final Map<String, String> values) {
         int ordinal = 0;
         for (final BlockProperty property : properties) {
             final String value = values.get(property.name());
@@ -334,7 +334,7 @@ public final class BlockType {
      */
     public static final class Builder {
 
-        private final Key key;
+        private final TypedKey<fr.fidorial.registry.data.BlockType> key;
         private final List<BlockProperty> properties = new ArrayList<>();
         private final List<Class<? extends BlockData>> extraTraits = new ArrayList<>();
         private int @Nullable [] stateIds;
@@ -342,7 +342,7 @@ public final class BlockType {
         private int fixedStateId = -1;
         private Map<String, String> defaultValues = Map.of();
 
-        private Builder(final Key key) {
+        private Builder(final TypedKey<fr.fidorial.registry.data.BlockType> key) {
             this.key = key;
         }
 

@@ -2,9 +2,9 @@ package fr.fidorial.world.block;
 
 import fr.fidorial.math.BlockPosition;
 import fr.fidorial.math.Location;
+import fr.fidorial.registry.TypedKey;
 import fr.fidorial.registry.keys.BlockTypeKeys;
 import fr.fidorial.world.BlockFace;
-import net.kyori.adventure.key.Key;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
 public record BlockPlaceContext(BlockPosition pos, BlockFace clickedFace, Location placer, BlockGetter world,
                                 float cursorY) {
 
-    private static final Key WATER = BlockTypeKeys.WATER.key();
+    private static final TypedKey<fr.fidorial.registry.data.BlockType> WATER = BlockTypeKeys.WATER;
 
     /**
      * {@return the horizontal direction the player looks towards}

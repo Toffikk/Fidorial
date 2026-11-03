@@ -93,8 +93,23 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
         return registryKey;
     }
 
+    final void checkRegistry(final RegistryKey<?> other) {
+        if (!registryKey.equals(other)) {
+            throw new IllegalArgumentException(other.key().asString() + " key used on registry " + name().asString());
+        }
+    }
+
+    final void checkKey(final Key key) {
+        switch (key) {
+            case final TypedKey<?> typed -> checkRegistry(typed.registry());
+            case final TagKey<?> tag -> checkRegistry(tag.registry());
+            default -> { }
+        }
+    }
+
     @Override
     public final T get(final TypedKey<T> key) {
+        checkRegistry(key.registry());
         final Entry<T> entry = snapshot.byKey.get(key.key());
         if (entry == null) {
             throw new NoSuchElementException("No entry " + key.key().asString() + " in registry " + name().asString());
@@ -104,6 +119,7 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
 
     @Override
     public final Optional<T> find(final TypedKey<T> key) {
+        checkRegistry(key.registry());
         final Entry<T> entry = snapshot.byKey.get(key.key());
         return entry == null ? Optional.empty() : Optional.of(value(entry));
     }
@@ -129,11 +145,13 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
 
     @Override
     public final boolean contains(final TypedKey<T> key) {
+        checkRegistry(key.registry());
         return snapshot.byKey.containsKey(key.key());
     }
 
     @Override
     public final boolean isCustom(final TypedKey<T> key) {
+        checkRegistry(key.registry());
         return isCustom(key.key());
     }
 
@@ -181,13 +199,14 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
     public final Collection<TagKey<T>> tags() {
         final List<TagKey<T>> tags = new ArrayList<>();
         for (final Key tag : snapshot.tags.keySet()) {
-            tags.add(TagKey.create(registryKey, tag));
+            tags.add(TagKey.withRegistry(registryKey, tag));
         }
         return Collections.unmodifiableList(tags);
     }
 
     @Override
     public final Collection<TypedKey<T>> tag(final TagKey<T> tag) {
+        checkRegistry(tag.registry());
         final List<Key> members = tag(tag.key());
         final List<TypedKey<T>> typed = new ArrayList<>(members.size());
         for (final Key member : members) {
@@ -198,6 +217,8 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
 
     @Override
     public final boolean isTagged(final TypedKey<T> key, final TagKey<T> tag) {
+        checkRegistry(key.registry());
+        checkRegistry(tag.registry());
         return isTagged(key.key(), tag.key());
     }
 
@@ -205,22 +226,24 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
      * {@return the network identifier of {@code key}, or {@code -1} if it is not registered}
      */
     public final int networkId(final Key key) {
+        checkKey(key);
         return snapshot.ids.getInt(key);
     }
 
     /**
      * {@return the key sent under {@code networkId}, {@code null} if there is none}
      */
-    public final @Nullable Key byNetworkId(final int networkId) {
+    public final @Nullable TypedKey<T> byNetworkId(final int networkId) {
         final List<@Nullable Entry<T>> byId = snapshot.byId;
         if (networkId < 0 || networkId >= byId.size()) {
             return null;
         }
         final Entry<T> entry = byId.get(networkId);
-        return entry == null ? null : entry.key;
+        return entry == null ? null : typed(entry.key);
     }
 
     public final boolean contains(final Key key) {
+        checkKey(key);
         return snapshot.byKey.containsKey(key);
     }
 
@@ -228,11 +251,13 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
      * {@return the value registered under {@code key}, {@code null} if there is none}
      */
     public final @Nullable T value(final Key key) {
+        checkKey(key);
         final Entry<T> entry = snapshot.byKey.get(key);
         return entry == null ? null : value(entry);
     }
 
     public final boolean isCustom(final Key key) {
+        checkKey(key);
         final Entry<T> entry = snapshot.byKey.get(key);
         return entry != null && entry.custom;
     }
@@ -245,6 +270,8 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
     }
 
     public final boolean isTagged(final Key key, final Key tag) {
+        checkKey(key);
+        checkKey(tag);
         final Set<Key> members = snapshot.tagSets.get(tag);
         return members != null && members.contains(key);
     }
@@ -253,6 +280,7 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
      * {@return the members of {@code tag}, empty if the tag does not exist}
      */
     public final List<Key> tag(final Key tag) {
+        checkKey(tag);
         return snapshot.tags.getOrDefault(tag, List.of());
     }
 
@@ -271,6 +299,7 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
     public final void registerCode(final Key key, final T value) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(value, "value");
+        checkKey(key);
         synchronized (this) {
             final Snapshot<T> current = snapshot;
             if (current.byKey.containsKey(key)) {
@@ -288,6 +317,7 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
      * @return {@code true} if it was removed
      */
     public final boolean unregisterCode(final Key key) {
+        checkKey(key);
         synchronized (this) {
             final Snapshot<T> current = snapshot;
             final Entry<T> entry = current.byKey.get(key);
@@ -339,7 +369,7 @@ public sealed class ServerRegistry<T> implements Registry<T> permits WritableSer
     }
 
     final TypedKey<T> typed(final Key key) {
-        return TypedKey.create(registryKey, key);
+        return TypedKey.withRegistry(registryKey, key);
     }
 
     final T value(final Entry<T> entry) {

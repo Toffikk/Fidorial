@@ -20,6 +20,7 @@ import fr.euphyllia.fidorial.server.world.structure.worldgen.Heightmap;
 import fr.euphyllia.fidorial.server.world.structure.worldgen.JigsawStructure;
 import fr.euphyllia.fidorial.server.world.structure.worldgen.TerrainAdaptation;
 import fr.euphyllia.fidorial.server.world.structure.worldgen.TerrainView;
+import fr.fidorial.registry.keys.BlockTypeKeys;
 import fr.fidorial.world.structure.StructureRotation;
 import org.jspecify.annotations.Nullable;
 
@@ -40,7 +41,7 @@ public final class PiecePlacer {
         this.registry = registry;
         this.terrain = terrain;
         final BlockState resolvedAir = registry.validator().resolve(Keys.AIR, Map.of());
-        this.air = resolvedAir == null ? BlockState.of(Keys.AIR) : resolvedAir;
+        this.air = resolvedAir == null ? BlockState.withoutProperties(BlockTypeKeys.AIR) : resolvedAir;
         this.jigsawReplacement = Processors.jigsawReplacement(registry.validator());
     }
 

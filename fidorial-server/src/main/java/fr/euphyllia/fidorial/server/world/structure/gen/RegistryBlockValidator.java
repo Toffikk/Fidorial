@@ -2,6 +2,8 @@ package fr.euphyllia.fidorial.server.world.structure.gen;
 
 import fr.euphyllia.fidorial.server.world.chunk.BlockState;
 import fr.euphyllia.fidorial.server.world.structure.BlockValidator;
+import fr.fidorial.registry.RegistryKey;
+import fr.fidorial.registry.TypedKey;
 import fr.fidorial.world.block.BlockData;
 import fr.fidorial.world.block.BlockProperty;
 import fr.fidorial.world.block.BlockRegistry;
@@ -32,7 +34,8 @@ public final class RegistryBlockValidator implements BlockValidator {
     }
 
     private Optional<BlockState> compute(final Request request) {
-        final BlockType type = registry.type(request.name()).orElse(null);
+        final TypedKey<fr.fidorial.registry.data.BlockType> name = TypedKey.withRegistry(RegistryKey.BLOCK, request.name());
+        final BlockType type = registry.type(name).orElse(null);
         if (type == null) {
             return Optional.empty();
         }
@@ -48,7 +51,7 @@ public final class RegistryBlockValidator implements BlockValidator {
             data = type.defaultData();
         }
         if (data == null) {
-            return Optional.of(BlockState.of(request.name(), valid));
+            return Optional.of(BlockState.withProperties(name, valid));
         }
         final Map<String, String> full = new HashMap<>();
         data.propertyMap().forEach((property, value) -> {
@@ -56,6 +59,6 @@ public final class RegistryBlockValidator implements BlockValidator {
                 full.put(property, value);
             }
         });
-        return Optional.of(BlockState.of(data.key(), full));
+        return Optional.of(BlockState.withProperties(data.key(), full));
     }
 }

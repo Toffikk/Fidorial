@@ -1589,6 +1589,6 @@ public final class BlockTypeTagKeys {
     }
 
     private static TagKey<BlockType> create(@KeyPattern final String value) {
-        return TagKey.create(RegistryKey.BLOCK, value);
+        return TagKey.withRegistry(RegistryKey.BLOCK, value);
     }
 }

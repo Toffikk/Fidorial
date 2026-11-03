@@ -12,6 +12,8 @@ import fr.fidorial.inventory.EnderChestInventory;
 import fr.fidorial.inventory.PlayerInventory;
 import fr.fidorial.item.ItemStack;
 import fr.fidorial.math.Location;
+import fr.fidorial.registry.TypedKey;
+import fr.fidorial.registry.data.Attribute;
 import fr.fidorial.registry.keys.AttributeKeys;
 import fr.fidorial.world.World;
 import net.kyori.adventure.bossbar.BossBarViewer;
@@ -164,7 +166,7 @@ public interface Player extends LivingEntity, CommandSender, Identified, BossBar
      * @throws IllegalArgumentException if the attribute does not exist or {@code base} is not finite
      * @since 0.1.0
      */
-    void setAttributeBase(Key attribute, double base);
+    void setAttributeBase(TypedKey<Attribute> attribute, double base);
 
     /**
      * Gives an attribute back the base value a vanilla player has.
@@ -175,17 +177,17 @@ public interface Player extends LivingEntity, CommandSender, Identified, BossBar
      * @throws IllegalArgumentException if the attribute does not exist
      * @since 0.1.0
      */
-    void resetAttributeBase(Key attribute);
+    void resetAttributeBase(TypedKey<Attribute> attribute);
 
     /**
      * Returns the base value set for an attribute.
      *
      * @param attribute the attribute, see {@link AttributeKeys}
-     * @return the value given to {@link #setAttributeBase(Key, double)}, or empty when the attribute has
+     * @return the value given to {@link #setAttributeBase(TypedKey, double)}, or empty when the attribute has
      * the base value a vanilla player has
      * @since 0.1.0
      */
-    OptionalDouble attributeBase(Key attribute);
+    OptionalDouble attributeBase(TypedKey<Attribute> attribute);
 
     /**
      * @return the stack in the currently {@linkplain #selectedSlot() selected} hotbar slot,
