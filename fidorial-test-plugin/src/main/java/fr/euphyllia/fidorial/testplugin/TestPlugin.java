@@ -18,6 +18,7 @@ import fr.euphyllia.fidorial.testplugin.recipe.TestRecipes;
 import fr.euphyllia.fidorial.testplugin.terrain.TestBiomes;
 import fr.euphyllia.fidorial.testplugin.terrain.TestChatTypes;
 import fr.euphyllia.fidorial.testplugin.terrain.TestDimensionTypes;
+import fr.euphyllia.fidorial.testplugin.torch.TorchPortals;
 import fr.euphyllia.fidorial.testplugin.worldgen.GeneratorSettings;
 import fr.euphyllia.fidorial.testplugin.worldgen.OverworldGenerator;
 import fr.fidorial.Server;
@@ -238,6 +239,7 @@ public final class TestPlugin implements Plugin {
         final var events = context.events();
 
         TestEffects.capAmplifier(events, logger);
+        new TorchPortals(this).register(events);
 
         events.subscribe(ServerStatusRequestEvent.class, event -> event.status(event.status().toBuilder()
                 .description(Component.text("HELLO!!!"))

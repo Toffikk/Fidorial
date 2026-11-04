@@ -152,8 +152,38 @@ public final class TestDimensionTypes {
             )
             .build();
 
+    public static final DimensionTypeDefinition TORCHLANDS = DimensionTypeDefinition
+            .builder(TypedKey.withRegistry(RegistryKey.DIMENSION_TYPE, "fidorial:torchlands"))
+            .coordinateScale(1.0)
+            .hasSkylight(false)
+            .hasCeiling(true)
+            .hasEnderDragonFight(false)
+            .ambientLight(0.0F)
+            .hasFixedTime(true)
+            .monsterSpawnBlockLightLimit(0)
+            .monsterSpawnLightLevel(IntProvider.constant(0))
+            .logicalHeight(256)
+            .bounds(0, 256)
+            .infiniburn(BlockTypeTagKeys.INFINIBURN_NETHER)
+            .skybox(Skybox.NONE)
+            .cardinalLight(CardinalLight.NETHER)
+            .addTimeline(TimelineReference.tag(TimelineTagKeys.IN_NETHER))
+            // World rules plus fallback visuals; each Torchlands biome overrides the visuals.
+            .attributes(attributes -> attributes
+                    .skyColor(0x000000)
+                    .fogColor(0x1A1100)
+                    .blockLightTint(0xFFB830)
+                    .ambientLightColor(0x0A0700)
+                    .waterFogColor(0xB88A00)
+                    .fastLava(true)
+                    .waterEvaporates(false)
+                    .respawnAnchorWorks(true)
+                    .piglinsZombify(false)
+                    .monstersBurn(false))
+            .build();
+
     private static final List<DimensionTypeDefinition> ALL =
-            List.of(VOLCANIC_DEPTHS, FROZEN_VOID, SKYLANDS, TOXIC_SWAMPLAND, IRRADIATED_WASTELAND);
+            List.of(VOLCANIC_DEPTHS, FROZEN_VOID, SKYLANDS, TOXIC_SWAMPLAND, IRRADIATED_WASTELAND, TORCHLANDS);
 
     private TestDimensionTypes() {
         throw new UnsupportedOperationException("TestDimensionTypes cannot be instantiated.");

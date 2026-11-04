@@ -166,9 +166,119 @@ public final class TestBiomes {
             .addAmbientParticle(AmbientParticle.of(Key.key("ash"), 0.015F))
             .build();
 
+    /*
+     * The Torchlands biomes. They override the TORCHLANDS dimension type's visual attributes,
+     * so the fog, light tint and particles of each zone are set here.
+     */
+    public static final BiomeDefinition SULFUR_SPRINGS = BiomeDefinition
+            .builder(TypedKey.withRegistry(RegistryKey.BIOME, "fidorial:sulfur_springs"))
+            .temperature(1.2F)
+            .downfall(0.0F)
+            .hasPrecipitation(false)
+            .effects(effects -> effects
+                    .waterColor(0xFFC21A)
+                    .grassColor(0xD9C034)
+                    .foliageColor(0xC9A820))
+            .skyColor(0x000000)
+            .fogColor(0x3A3000)
+            .waterFogColor(0xB88A00)
+            .addAmbientParticle(AmbientParticle.of(Key.key("small_flame"), 0.003F))
+            .addAmbientParticle(AmbientParticle.of(Key.key("flame"), 0.0008F))
+            .addAmbientParticle(AmbientParticle.of(Key.key("white_ash"), 0.02F))
+            .ambientSounds(new AmbientSounds(
+                    Key.key("ambient.soul_sand_valley.loop"),
+                    MoodSound.CAVE,
+                    AdditionsSound.of(Key.key("ambient.soul_sand_valley.additions"), 0.0111F)))
+            .attributes(attributes -> attributes
+                    .fogStartDistance(0.0F)
+                    .fogEndDistance(72.0F)
+                    .blockLightTint(0xFFD040)
+                    .ambientLightColor(0x1A1600)
+                    .waterFogColor(0xB88A00))
+            .build();
+
+    public static final BiomeDefinition COPPER_GROTTO = BiomeDefinition
+            .builder(TypedKey.withRegistry(RegistryKey.BIOME, "fidorial:copper_grotto"))
+            .temperature(0.8F)
+            .downfall(0.0F)
+            .hasPrecipitation(false)
+            .effects(effects -> effects
+                    .waterColor(0xFFB000)
+                    .grassColor(0x5FA889)
+                    .foliageColor(0x4E9A7C))
+            .skyColor(0x000000)
+            .fogColor(0x12261F)
+            .waterFogColor(0xA87400)
+            .addAmbientParticle(AmbientParticle.of(Key.key("small_flame"), 0.003F))
+            .addAmbientParticle(AmbientParticle.of(Key.key("electric_spark"), 0.004F))
+            .ambientSounds(AmbientSounds.mood(MoodSound.CAVE))
+            .attributes(attributes -> attributes
+                    .fogStartDistance(8.0F)
+                    .fogEndDistance(96.0F)
+                    .blockLightTint(0xFFB060)
+                    .ambientLightColor(0x061210)
+                    .waterFogColor(0xA87400))
+            .build();
+
+    public static final BiomeDefinition CRIMSON_HOLLOW = BiomeDefinition
+            .builder(TypedKey.withRegistry(RegistryKey.BIOME, "fidorial:crimson_hollow"))
+            .temperature(2.0F)
+            .downfall(0.0F)
+            .hasPrecipitation(false)
+            .effects(effects -> effects
+                    .waterColor(0xFFC21A)
+                    .grassColor(0x8C1C1C)
+                    .foliageColor(0x7A1515))
+            .skyColor(0x000000)
+            .fogColor(0x330808)
+            .waterFogColor(0x5A0A0A)
+            .addAmbientParticle(AmbientParticle.of(Key.key("small_flame"), 0.004F))
+            .addAmbientParticle(AmbientParticle.of(Key.key("crimson_spore"), 0.025F))
+            .ambientSounds(new AmbientSounds(
+                    Key.key("ambient.crimson_forest.loop"),
+                    MoodSound.CAVE,
+                    AdditionsSound.of(Key.key("ambient.crimson_forest.additions"), 0.0111F)))
+            .backgroundMusic(BackgroundMusic.of(
+                    MusicTrack.of(Key.key("music.nether.crimson_forest"), 12000, 24000)))
+            .attributes(attributes -> attributes
+                    .fogStartDistance(0.0F)
+                    .fogEndDistance(64.0F)
+                    .blockLightTint(0xFF7A40)
+                    .ambientLightColor(0x1A0404)
+                    .increasedFireBurnout(true))
+            .build();
+
+    public static final BiomeDefinition MAGMA_RIFTS = BiomeDefinition
+            .builder(TypedKey.withRegistry(RegistryKey.BIOME, "fidorial:magma_rifts"))
+            .temperature(2.0F)
+            .downfall(0.0F)
+            .hasPrecipitation(false)
+            .effects(effects -> effects
+                    .waterColor(0xFFC21A)
+                    .grassColor(0x5C3A22)
+                    .foliageColor(0x4A2E1A))
+            .skyColor(0x000000)
+            .fogColor(0x2B1408)
+            .waterFogColor(0x3A1200)
+            .addAmbientParticle(AmbientParticle.of(Key.key("small_flame"), 0.005F))
+            .addAmbientParticle(AmbientParticle.of(Key.key("flame"), 0.0015F))
+            .addAmbientParticle(AmbientParticle.of(Key.key("ash"), 0.05F))
+            .ambientSounds(new AmbientSounds(
+                    Key.key("ambient.basalt_deltas.loop"),
+                    MoodSound.CAVE,
+                    AdditionsSound.of(Key.key("ambient.basalt_deltas.additions"), 0.0111F)))
+            .attributes(attributes -> attributes
+                    .fogStartDistance(0.0F)
+                    .fogEndDistance(56.0F)
+                    .blockLightTint(0xFF9030)
+                    .ambientLightColor(0x140A04)
+                    .increasedFireBurnout(true))
+            .build();
+
     private static final List<BiomeDefinition> ALL =
             List.of(VOLCANIC_PLAINS, FROZEN_PEAKS, TOXIC_RIVER, CRYSTAL_SHORE,
-                    ASHEN_WASTELAND, TOXIC_CRATERS, MOLTEN_CRATERS, RUBBLE_FLATS, IRRADIATED_RIDGES);
+                    ASHEN_WASTELAND, TOXIC_CRATERS, MOLTEN_CRATERS, RUBBLE_FLATS, IRRADIATED_RIDGES,
+                    SULFUR_SPRINGS, COPPER_GROTTO, CRIMSON_HOLLOW, MAGMA_RIFTS);
 
     private TestBiomes() {
         throw new UnsupportedOperationException("TestBiomes cannot be instantiated.");
