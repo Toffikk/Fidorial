@@ -10,7 +10,11 @@ import fr.fidorial.world.World;
 import fr.fidorial.world.WorldSpec;
 import net.kyori.adventure.key.Key;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("unused")
@@ -52,6 +56,28 @@ public final class PlayerTests {
                         "Expected the player to be respawned in the explicitly given world, not the default one")
                 .waitUntil(() -> player.location().equals(point),
                         "Expected the player location after respawning to match what was set, got " + player.location())
+                .build();
+    }
+
+    @ScenarioTest
+    public static void stressTest(final ScenarioTestHelper helper) {
+        final ThreadLocalRandom random = ThreadLocalRandom.current();
+        final List<Player> players = new ArrayList<>(1000);
+        for (int i = 0; i < 1000; i++) {
+            final Location spawnLocation = Location.of(
+                    helper.world(),
+                    random.nextDouble(-10000, 10000),
+                    65,
+                    random.nextDouble(-10000, 10000),
+                    random.nextFloat(-180f, 180f),
+                    random.nextFloat(-90f, 90f)
+            );
+            players.add(helper.summonPlayer(String.valueOf(i), spawnLocation, GameMode.SURVIVAL));
+        }
+
+        helper.sequence()
+                .waitUntil(() -> players.stream().allMatch(player -> helper.world().entity(player.entityId()).isPresent()),
+                        "Expected all " + players.size() + " players to be added to the world")
                 .build();
     }
 
